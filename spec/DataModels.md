@@ -216,7 +216,7 @@ export type ThemeMode = 'light' | 'dark' | 'system';
 
 - `'system'` defers to OS preference via `prefers-color-scheme` media query.
 - Changes to OS preference are detected in real time and applied when theme is `'system'`.
-- Theme is applied by toggling the `dark` class on `<html>`.
+- Dark mode is the default (`:root` CSS). Light mode is applied by toggling the `.light` class on `<html>`.
 
 ---
 
@@ -286,7 +286,58 @@ When closing the active tab:
 |----------|-----------|-------------|
 | `loadSettings` | `() => Promise<void>` | Loads theme from backend via `GetTheme()`; applies to DOM |
 | `setTheme` | `(mode: ThemeMode) => Promise<void>` | Updates store, applies to DOM, persists via `SetTheme()` |
-| `applyTheme` | `(mode: ThemeMode) => void` | Toggles `dark` class on `<html>` based on mode and OS preference |
+| `applyTheme` | `(mode: ThemeMode) => void` | Toggles `.light` class on `<html>` based on mode and OS preference |
+
+---
+
+### UI Store
+
+**File:** `frontend/src/lib/stores/ui.ts`
+
+| Store | Type | Initial Value | Description |
+|-------|------|---------------|-------------|
+| `zoomLevel` | `writable<number>` | `100` | Document zoom percentage |
+| `readingWidth` | `writable<number>` | `720` | Document max-width in pixels |
+| `focusMode` | `writable<boolean>` | `false` | Focus mode state (hides chrome) |
+| `commandPaletteOpen` | `writable<boolean>` | `false` | Command palette visibility |
+| `opacity` | `writable<number>` | `75` | Reader surface opacity (40–100%) |
+| `readerRadius` | `writable<number>` | `28` | Window corner radius in pixels |
+| `backgroundMode` | `writable<string>` | `'gradient'` | Background mode: `"gradient"`, `"solid"`, `"frost"` |
+
+**Functions:**
+
+| Function | Signature | Description |
+|----------|-----------|-------------|
+| `zoomIn` | `() => void` | Step up through `ZOOM_LEVELS` array |
+| `zoomOut` | `() => void` | Step down through `ZOOM_LEVELS` array |
+| `resetZoom` | `() => void` | Set zoom to 100% |
+| `toggleFocusMode` | `() => void` | Toggle `focusMode` |
+| `toggleCommandPalette` | `() => void` | Toggle `commandPaletteOpen` |
+| `changeOpacity` | `(delta: number) => void` | Adjust opacity by delta, clamp 40–100 |
+| `setReaderRadius` | `(px: number) => void` | Set `--reader-radius` CSS variable |
+| `setBackgroundMode` | `(mode: string) => void` | Toggle background layer visibility |
+
+**Zoom Levels:**
+
+```typescript
+const ZOOM_LEVELS = [50, 75, 90, 100, 110, 125, 150, 175, 200];
+```
+
+Zoom steps through discrete levels rather than arbitrary values.
+
+**Opacity:**
+
+Keyboard shortcuts: `Ctrl+Shift+Plus` (increase), `Ctrl+Shift+Minus` (decrease), step size: 5%.
+
+Contrast warning shown when opacity drops below 55%.
+
+**Background Modes:**
+
+| Mode | Sky | Mountains | Fog | Stars |
+|------|-----|-----------|-----|-------|
+| `gradient` | Visible | Visible | Visible | Visible (dark only) |
+| `solid` | Hidden | Hidden | Hidden | Hidden |
+| `frost` | 30% opacity | Hidden | Visible | Hidden |
 
 ---
 
@@ -302,6 +353,12 @@ When closing the active tab:
 | Scroll positions | In-memory | Frontend store (per tab) | Lost on application close |
 | Recent paths | Disk (via Config) | `~/.config/ais/config.json` | Updated on `SetRootPath`, max 10 entries |
 | Last opened path | Disk (via Config) | `~/.config/ais/config.json` | Updated on startup and `SetRootPath` |
+| Zoom level | In-memory | Frontend store (`ui.ts`) | Reset to 100% on application close |
+| Reading width | In-memory | Frontend store (`ui.ts`) | Reset to 720px on application close |
+| Focus mode | In-memory | Frontend store (`ui.ts`) | Always starts as `false` |
+| Opacity | In-memory | Frontend store (`ui.ts`) | Reset to 75% on application close |
+| Reader radius | In-memory | Frontend store (`ui.ts`) | Reset to 28px on application close |
+| Background mode | In-memory | Frontend store (`ui.ts`) | Reset to `gradient` on application close |
 
 ---
 
@@ -348,3 +405,14 @@ Data crosses the Go-Frontend boundary via Wails bindings. Serialization is autom
 | Debounce interval | `100ms` | `internal/watcher/watcher.go` | Per-file debounce for filesystem events |
 | Default font size | `16` | `internal/config/defaults.go` | Pixels |
 | Default sidebar width | `260` | `internal/config/defaults.go` | Pixels |
+| Zoom levels | `[50,75,90,100,110,125,150,175,200]` | `frontend/src/lib/stores/ui.ts` | Discrete zoom steps |
+| Default zoom | `100` | `frontend/src/lib/stores/ui.ts` | Percentage |
+| Default reading width | `720` | `frontend/src/lib/stores/ui.ts` | Pixels |
+| Min/max reading width | `500–1000` | `frontend/src/lib/stores/ui.ts` | Pixels |
+| Default opacity | `75` | `frontend/src/lib/stores/ui.ts` | Percentage |
+| Min/max opacity | `40–100` | `frontend/src/lib/stores/ui.ts` | Percentage |
+| Opacity step | `5` | `frontend/src/lib/stores/ui.ts` | Keyboard shortcut increment |
+| Contrast warning threshold | `55` | `frontend/src/lib/stores/ui.ts` | Show warning below this opacity |
+| Default reader radius | `28` | `frontend/src/lib/stores/ui.ts` | Pixels |
+| Radius options | `[20, 28, 36, 48]` | `frontend/src/lib/stores/ui.ts` | Pixels |
+| Default background mode | `gradient` | `frontend/src/lib/stores/ui.ts` | String |

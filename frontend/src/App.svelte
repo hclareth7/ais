@@ -3,20 +3,35 @@
   import Sidebar from './lib/components/Sidebar.svelte';
   import TabBar from './lib/components/TabBar.svelte';
   import MarkdownViewer from './lib/components/MarkdownViewer.svelte';
+  import TocPanel from './lib/components/TocPanel.svelte';
   import ControlStrip from './lib/components/ControlStrip.svelte';
+  import SettingsPanel from './lib/components/SettingsPanel.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import { loadFileTree, rootPath, type FileNode } from './lib/stores/files';
   import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, tabs } from './lib/stores/tabs';
   import { loadSettings } from './lib/stores/settings';
   import { readFile } from './lib/stores/files';
-  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen } from './lib/stores/ui';
+  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen } from './lib/stores/ui';
   import { get } from 'svelte/store';
+
+  function windowMinimise() {
+    import('../wailsjs/runtime/runtime').then(r => r.WindowMinimise()).catch(() => {});
+  }
+
+  function windowToggleMaximise() {
+    import('../wailsjs/runtime/runtime').then(r => r.WindowToggleMaximise()).catch(() => {});
+  }
+
+  function windowQuit() {
+    import('../wailsjs/runtime/runtime').then(r => r.Quit()).catch(() => {});
+  }
 
   let navVisible = $state(false);
 
   function handleFileClick(node: FileNode) {
     if (!node.isDir) {
       openTab(node.path, node.name);
+      navVisible = false;
     }
   }
 
@@ -29,18 +44,6 @@
   onMount(async () => {
     await loadSettings();
     await loadFileTree();
-
-    const starsEl = document.getElementById('stars');
-    if (starsEl) {
-      for (let i = 0; i < 80; i++) {
-        const star = document.createElement('div');
-        star.className = 'star';
-        star.style.left = `${(i * 17 + 31) % 100}%`;
-        star.style.top = `${(i * 23 + 7) % 100}%`;
-        star.style.opacity = `${0.2 + ((i * 13) % 5) * 0.1}`;
-        starsEl.appendChild(star);
-      }
-    }
 
     try {
       const { EventsOn } = await import('../wailsjs/runtime/runtime');
@@ -107,6 +110,24 @@
         return;
       }
 
+      if (e.ctrlKey && e.shiftKey && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        changeOpacity(5);
+        return;
+      }
+
+      if (e.ctrlKey && e.shiftKey && e.key === '-') {
+        e.preventDefault();
+        changeOpacity(-5);
+        return;
+      }
+
+      if (e.ctrlKey && e.shiftKey && (e.key === 'O' || e.key === 'o')) {
+        e.preventDefault();
+        toggleToc();
+        return;
+      }
+
       if (e.key === 'F11') {
         e.preventDefault();
         toggleFocusMode();
@@ -118,6 +139,7 @@
           toggleFocusMode();
         } else {
           navVisible = false;
+          settingsOpen.set(false);
         }
         return;
       }
@@ -125,33 +147,31 @@
 
     document.addEventListener('keydown', handleKeydown);
 
+    function handleClickOutsideSettings(e: MouseEvent) {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.settings') && !target.closest('.cb[title="Settings"]')) {
+        settingsOpen.set(false);
+      }
+    }
+
+    document.addEventListener('click', handleClickOutsideSettings);
+
     return () => {
       document.removeEventListener('keydown', handleKeydown);
+      document.removeEventListener('click', handleClickOutsideSettings);
     };
   });
 </script>
 
 <div id="srAnnounce" class="sr-only" aria-live="polite" aria-atomic="true" role="status"></div>
 
-<div class="background" aria-hidden="true">
-  <div class="bg-sky"></div>
-  <div class="bg-mountains">
-    <div class="mountain m1"></div>
-    <div class="mountain m2"></div>
-    <div class="mountain m3"></div>
-  </div>
-  <div class="bg-fog"></div>
-  <div class="bg-stars" id="stars"></div>
-</div>
-
 <div
   class="reader"
   class:focus={$focusMode}
-  style="width: 82vw; height: 90vh;"
   role="application"
   aria-label="ais document reader"
 >
-  <div class="titlebar">
+  <div class="titlebar" style="--wails-draggable: drag;">
     <div class="tb-left">
       <span class="logo">ais</span>
       <div class="breadcrumb">
@@ -161,6 +181,17 @@
           <span>{$activeTab.name}</span>
         {/if}
       </div>
+    </div>
+    <div class="tb-right" style="--wails-draggable: no-drag;">
+      <button class="wb" title="Minimize" aria-label="Minimize window" onclick={windowMinimise}>
+        <svg viewBox="0 0 14 14"><line x1="2" y1="7" x2="12" y2="7"/></svg>
+      </button>
+      <button class="wb" title="Maximize" aria-label="Maximize window" onclick={windowToggleMaximise}>
+        <svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5"/></svg>
+      </button>
+      <button class="wb cl" title="Close" aria-label="Close window" onclick={windowQuit}>
+        <svg viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>
+      </button>
     </div>
   </div>
 
@@ -173,12 +204,14 @@
     <MarkdownViewer zoomLevel={$zoomLevel} readingWidth={$readingWidth} />
 
     <div class="toc-trigger" role="presentation"></div>
+    <TocPanel />
 
     <div class="edge edge-left"></div>
     <div class="edge edge-right"></div>
 
     <div class="bottom-trigger" role="presentation"></div>
     <ControlStrip />
+    <SettingsPanel />
   </div>
 </div>
 
@@ -186,8 +219,6 @@
 
 <style>
   .reader.focus {
-    width: 100vw !important;
-    height: 100vh !important;
     border-radius: 0;
     border-color: transparent;
   }

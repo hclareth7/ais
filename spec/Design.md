@@ -362,7 +362,11 @@ Everything else is layered around it.
 
 ## Window Style
 
-Floating glass surface.
+Frameless glass surface.
+
+The application window has no OS-provided decorations (title bar, borders, close/minimize/maximize buttons). The reader surface IS the window boundary.
+
+Custom window controls (minimize, maximize, close) are rendered inside the titlebar area of the reader surface. The titlebar is draggable for window repositioning.
 
 Properties:
 
@@ -377,8 +381,9 @@ box-shadow:
 
 Visual characteristics:
 
+- frameless — no OS window chrome
 - semi-transparent
-- soft edges
+- soft edges (rounded corners define the window shape)
 - subtle depth
 - calm appearance
 - no hard boundaries

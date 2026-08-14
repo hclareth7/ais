@@ -52,12 +52,17 @@ frontend/src/
       MarkdownViewer.svelte     Renders active tab, heading collapse, scroll restore
       ThemeToggle.svelte        Cycles system/light/dark, calls Go SetTheme
       WelcomeScreen.svelte      Shown when no tabs open
+      ControlStrip.svelte       Bottom floating controls (zoom, width, theme, settings)
+      CommandPalette.svelte     Ctrl+K command/document search overlay
+      TocPanel.svelte           Right-edge hover-reveal Table of Contents
+      SettingsPanel.svelte      Appearance settings (theme, opacity, radius, background)
     markdown/
       renderer.ts               markdown-it (html:false), 15 highlight.js languages
     stores/
       files.ts                  fileTree/rootPath stores, loadFileTree/readFile via Wails bindings
       tabs.ts                   Tab management: open, close, next, prev, updateContent
       settings.ts               Theme store, system preference listener
+      ui.ts                     UI state: zoom, readingWidth, focusMode, opacity, radius, background
 ```
 
 ### Spec & Design
@@ -86,6 +91,13 @@ Go methods on `App` are exposed via auto-generated `frontend/wailsjs/go/main/App
 - `GetTheme()` / `SetTheme(mode)` — theme preference
 
 Events: `file:changed` emitted from Go watcher, consumed in `App.svelte` via `EventsOn`.
+
+Wails runtime methods used directly (frameless window controls):
+- `WindowMinimise()` — minimize window
+- `WindowToggleMaximise()` — toggle maximize/restore
+- `Quit()` — close application
+
+Window is frameless (`Frameless: true` in main.go). Titlebar uses `--wails-draggable: drag` for window dragging.
 
 ## Build Commands
 
