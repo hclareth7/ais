@@ -33,10 +33,10 @@ export function applyTheme(mode: ThemeMode): void {
   const html = document.documentElement;
 
   if (mode === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
-    html.classList.toggle('dark', prefersDark);
+    const prefersLight = !window.matchMedia('(prefers-color-scheme: dark)').matches;
+    html.classList.toggle('light', prefersLight);
   } else {
-    html.classList.toggle('dark', mode === 'dark');
+    html.classList.toggle('light', mode === 'light');
   }
 }
 

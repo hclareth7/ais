@@ -10,7 +10,6 @@
     searchQuery?: string;
   } = $props();
 
-  // Intentionally capture initial depth — tree nodes don't change depth after mount
   let expanded = $state((() => depth < 2)());
 
   function toggle() {
@@ -41,9 +40,9 @@
 {#if matchesSearch(node, searchQuery)}
   <div class="tree-node" style="padding-left: {depth * 16}px">
     <button
-      class="tree-item"
+      class="nv"
       class:is-dir={node.isDir}
-      class:is-active={isActive}
+      class:on={isActive}
       onclick={toggle}
       role="treeitem"
       aria-selected={isActive}
@@ -51,9 +50,18 @@
       title={node.path}
     >
       {#if node.isDir}
-        <span class="chevron">{expanded ? '▼' : '▶'}</span>
+        <svg class="node-icon" viewBox="0 0 24 24">
+          {#if expanded}
+            <polyline points="6 9 12 15 18 9" />
+          {:else}
+            <polyline points="9 6 15 12 9 18" />
+          {/if}
+        </svg>
       {:else}
-        <span class="file-icon">•</span>
+        <svg class="node-icon" viewBox="0 0 24 24">
+          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+          <polyline points="14 2 14 8 20 8" />
+        </svg>
       {/if}
       <span class="node-name">{node.name}</span>
     </button>
@@ -76,56 +84,60 @@
     user-select: none;
   }
 
-  .tree-item {
+  .nv {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 9px;
     width: 100%;
-    padding: 4px 8px;
+    padding: 7px 10px;
+    font-size: 14px;
+    color: var(--text-secondary);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
     border: none;
     background: none;
-    color: var(--text-secondary);
-    font-size: 14px;
-    line-height: 20px;
-    cursor: pointer;
     text-align: left;
-    border-radius: 4px;
+    font-family: inherit;
   }
 
-  .tree-item:hover {
-    background: var(--bg-inset);
+  .nv:hover {
+    background: var(--hover-bg);
     color: var(--text-primary);
   }
 
-  .tree-item.is-active {
-    background: var(--accent-subtle);
-    color: var(--text-primary);
+  .nv:hover :global(svg) {
+    stroke: var(--text-primary);
   }
 
-  .tree-item.is-dir {
+  .nv.on {
+    background: var(--active-bg);
+    color: var(--accent-text);
+  }
+
+  .nv.on :global(svg) {
+    stroke: var(--icon-active);
+  }
+
+  .nv.is-dir {
     font-weight: 500;
   }
 
-  .tree-item:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: -2px;
+  .nv:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 4px;
   }
 
-  .chevron {
-    font-size: 10px;
+  .node-icon {
     width: 16px;
-    text-align: center;
+    height: 16px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
     flex-shrink: 0;
-    transition: transform 150ms ease;
-    color: var(--text-muted);
-  }
-
-  .file-icon {
-    font-size: 10px;
-    width: 16px;
-    text-align: center;
-    flex-shrink: 0;
-    color: var(--text-muted);
+    transition: stroke 0.12s;
   }
 
   .node-name {
