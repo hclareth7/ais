@@ -42,9 +42,15 @@ Responsibilities:
 
 - Parse CLI arguments (`--version`, `--mcp`, positional path)
 - Resolve and validate the root directory path
-- Configure Wails application options (window size, background color, asset server)
+- Configure Wails application options (window size, background color, asset server, frameless mode)
 - Embed the compiled frontend via `//go:embed all:frontend/dist`
 - Start the Wails runtime
+
+Window configuration:
+
+- `Frameless: true` — removes OS window decorations; the frontend renders custom window controls
+- `BackgroundColour: RGBA{11, 13, 16, 1}` — matches `--bg: #0B0D10`
+- Build tags: `webkit2_41` for Fedora 43+ compatibility (webkit2gtk-4.1)
 
 The `version` variable is set at build time via `-ldflags`.
 
@@ -168,34 +174,49 @@ Shutdown is idempotent via `sync.Once`.
 ### Component Hierarchy
 
 ```
-App.svelte                          Shell layout, keyboard handlers, event listener
-  ├─ Sidebar.svelte                 File explorer panel, search, theme toggle
+App.svelte                          Shell: background, floating reader, keyboard handlers
+  ├─ Sidebar.svelte                 Left nav panel (hover-reveal), file explorer, search
   │     ├─ FileTree.svelte          Tree container
   │     │     └─ FileTreeNode.svelte   Recursive node (expand/collapse, filtering)
   │     └─ ThemeToggle.svelte       Theme cycle button (system → light → dark)
-  ├─ TabBar.svelte                  Tab strip (click to switch, middle-click to close)
+  ├─ TabBar.svelte                  Floating tab strip (hidden when single tab)
   ├─ MarkdownViewer.svelte          Renders active tab content, heading collapse, scroll restore
-  └─ WelcomeScreen.svelte           Shown when no tabs are open
+  │     └─ WelcomeScreen.svelte     Shown when no tabs are open
+  ├─ TocPanel.svelte                Right nav panel (hover-reveal), document outline
+  ├─ ControlStrip.svelte            Bottom floating control bar (zoom, width, theme, settings)
+  ├─ SettingsPanel.svelte           Appearance settings (theme, opacity, radius, background)
+  └─ CommandPalette.svelte          Ctrl+K command/document search overlay
 ```
 
 ### Layout
 
-The shell uses CSS Grid with named areas:
+The shell uses a floating reader surface centered on the viewport. No CSS Grid.
 
 ```
-grid-template-areas:
-  "sidebar tabs"
-  "sidebar viewer"
+Background layer (fixed, full viewport)
+  ├─ Sky gradient
+  ├─ Mountains
+  ├─ Fog
+  └─ Stars
+
+Reader surface (fixed, centered, 82vw × 90vh)
+  ├─ Titlebar (logo, breadcrumb, window controls)
+  ├─ TabBar (hidden when ≤1 tab)
+  └─ Content area (flex: 1, relative)
+        ├─ Nav trigger zone (left 24px, hover-reveal)
+        ├─ Nav panel (Sidebar — absolute positioned)
+        ├─ Document viewer (flex: 1, scrollable)
+        ├─ TOC trigger zone (right 24px, hover-reveal)
+        ├─ TOC panel (absolute positioned)
+        ├─ Edge indicators (left/right, fade on hover)
+        ├─ Bottom trigger zone (24px, hover-reveal)
+        ├─ Control strip (absolute, bottom center)
+        └─ Settings panel (absolute, above control strip)
 ```
 
-Grid dimensions:
+The reader surface is a frameless window — no OS window decorations. The `border-radius: var(--reader-radius)` defines the visual window boundary. Custom window controls (minimize, maximize, close) are rendered in the titlebar.
 
-```
-Columns: var(--sidebar-width) 1fr
-Rows:    var(--tab-height) 1fr
-```
-
-When the sidebar is hidden (`Ctrl+B`), the first column collapses to `0` with a 200ms transition.
+Window dragging is enabled via `--wails-draggable: drag` on the titlebar element.
 
 ### Svelte 5 Runes
 
@@ -210,7 +231,7 @@ Legacy `let` reactivity is not used.
 
 ### Stores
 
-Three store modules manage global state:
+Four store modules manage global state:
 
 **files.ts** — File tree and content access
 
@@ -242,10 +263,31 @@ Tab IDs are the file path. Maximum 20 open tabs; the oldest is evicted when the 
 theme: Writable<ThemeMode>              "light" | "dark" | "system"
 loadSettings(): Promise<void>           Load theme from Go backend
 setTheme(mode): Promise<void>           Apply and persist theme
-applyTheme(mode): void                  Toggle CSS class on <html>
+applyTheme(mode): void                  Toggle .light class on <html> (dark is default)
 ```
 
 System theme preference changes are tracked via `matchMedia` listener.
+
+**ui.ts** — UI state and controls
+
+```
+zoomLevel: Writable<number>             Current zoom (50–200%, step via ZOOM_LEVELS)
+readingWidth: Writable<number>          Document max-width in pixels (500–1000)
+focusMode: Writable<boolean>            Focus mode active (hides titlebar, tabs, shows only content)
+commandPaletteOpen: Writable<boolean>   Command palette visibility
+opacity: Writable<number>              Reader surface opacity (40–100%)
+readerRadius: Writable<number>         Window corner radius (20, 28, 36, 48 px)
+backgroundMode: Writable<string>       Background style ("gradient", "solid", "frost")
+
+zoomIn() / zoomOut() / resetZoom()     Step through ZOOM_LEVELS array
+toggleFocusMode()                       Toggle focus mode
+toggleCommandPalette()                  Toggle command palette
+changeOpacity(delta)                    Adjust opacity by delta, clamp 40–100
+setReaderRadius(px)                     Set --reader-radius CSS variable
+setBackgroundMode(mode)                 Toggle background layer visibility
+```
+
+ZOOM_LEVELS: `[50, 75, 90, 100, 110, 125, 150, 175, 200]`
 
 ### Markdown Rendering
 
@@ -275,11 +317,17 @@ If language detection fails, content renders as escaped plain text.
 
 ### Styling
 
-All colors are defined as CSS custom properties in `style.css`. Components reference tokens like `var(--text-primary)`, `var(--bg-code)`, etc.
+All colors are defined as CSS custom properties in `style.css`. Components reference tokens like `var(--text-primary)`, `var(--code-bg)`, etc.
 
-Theme switching toggles the `.dark` class on `<html>`. Light and dark token sets are defined in the same stylesheet.
+Dark mode is the default (`:root`). Light mode is activated by toggling the `.light` class on `<html>`. Both token sets are defined in the same stylesheet.
 
 Hardcoded color values are not permitted in components.
+
+Layout variables:
+
+- `--reader-radius` — window corner radius (default `28px`, configurable via settings)
+- `--reading-max-width` — document max-width (default `720px`)
+- `--surface-opacity` — reader surface opacity (default `0.75`)
 
 ---
 
@@ -435,7 +483,8 @@ App.svelte
   ├─ stores/
   │    ├─ files.ts    → wailsjs bindings
   │    ├─ tabs.ts     → files store
-  │    └─ settings.ts → wailsjs bindings
+  │    ├─ settings.ts → wailsjs bindings
+  │    └─ ui.ts       → pure frontend state (zoom, focus, opacity, radius, background)
   └─ markdown/
        ├─ markdown-it                        Markdown parsing
        └─ highlight.js (core + 15 languages) Syntax highlighting

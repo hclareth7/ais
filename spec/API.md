@@ -311,6 +311,34 @@ Convenience method — updates only the `theme` field without affecting other co
 
 ---
 
+## Wails Runtime Methods (Frontend Direct Calls)
+
+In addition to the bound Go methods above, the frontend uses Wails runtime methods directly. These are not auto-generated — they are provided by the Wails runtime library at `frontend/wailsjs/runtime/runtime.js`.
+
+### Window Control
+
+Used by the custom titlebar for frameless window management:
+
+| Method | Description |
+|--------|-------------|
+| `WindowMinimise()` | Minimizes the window |
+| `WindowToggleMaximise()` | Toggles between maximized and restored |
+| `Quit()` | Closes the application |
+
+These methods are called from the custom window control buttons in the titlebar (`tb-right`). The window is frameless (`Frameless: true` in Go options), so no OS-provided window controls exist.
+
+### Window Drag
+
+The titlebar element uses the CSS property `--wails-draggable: drag` to enable native window dragging in frameless mode.
+
+### Other Runtime Methods Used
+
+| Method | Where Used | Purpose |
+|--------|-----------|---------|
+| `EventsOn(name, callback)` | `App.svelte` | Listen for backend events (`file:changed`) |
+
+---
+
 ## Events
 
 ### file:changed

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { zoomLevel, zoomIn, zoomOut, resetZoom, readingWidth, toggleFocusMode } from '../stores/ui';
+  import { zoomLevel, zoomIn, zoomOut, resetZoom, readingWidth, toggleFocusMode, focusMode, toggleSettings } from '../stores/ui';
   import { theme, setTheme, type ThemeMode } from '../stores/settings';
 
   function cycleTheme() {
@@ -10,55 +10,52 @@
     setTheme(next);
   }
 
-  function handleWidthChange(e: Event) {
-    const target = e.target as HTMLInputElement;
-    readingWidth.set(parseInt(target.value));
+  function narrowWidth() {
+    readingWidth.update(w => Math.max(600, w - 40));
+  }
+
+  function widenWidth() {
+    readingWidth.update(w => Math.min(1000, w + 40));
   }
 </script>
 
-<div class="controls">
+<div class="controls" role="toolbar" aria-label="Document controls">
   <button class="cb" onclick={zoomOut} aria-label="Zoom out" title="Zoom out (Ctrl+-)">
-    <svg viewBox="0 0 24 24"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/></svg>
   </button>
 
-  <button class="cb-val" onclick={resetZoom} title="Reset zoom (Ctrl+0)">
+  <button class="cb-val" onclick={resetZoom} title="Reset zoom (Ctrl+0)" aria-label="Current zoom {$zoomLevel}%">
     {$zoomLevel}%
   </button>
 
   <button class="cb" onclick={zoomIn} aria-label="Zoom in" title="Zoom in (Ctrl+=)">
-    <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg>
   </button>
 
-  <div class="cb-div"></div>
+  <div class="cb-div" aria-hidden="true"></div>
 
-  <input
-    type="range"
-    class="w-slider"
-    min="500"
-    max="1000"
-    step="20"
-    value={$readingWidth}
-    oninput={handleWidthChange}
-    aria-label="Reading width"
-    title="Reading width: {$readingWidth}px"
-  />
+  <button class="cb" onclick={narrowWidth} aria-label="Decrease reading width" title="Narrower">
+    <svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="5,8.5 7,10 5,11.5"/><polyline points="15,8.5 13,10 15,11.5"/></svg>
+  </button>
 
-  <div class="cb-div"></div>
+  <span class="cb-val" aria-label="Current reading width">{$readingWidth}</span>
+
+  <button class="cb" onclick={widenWidth} aria-label="Increase reading width" title="Wider">
+    <svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="5,8.5 3,10 5,11.5"/><polyline points="15,8.5 17,10 15,11.5"/></svg>
+  </button>
+
+  <div class="cb-div" aria-hidden="true"></div>
+
+  <button class="cb" class:on={$focusMode} onclick={toggleFocusMode} aria-label="Toggle focus mode" aria-pressed={$focusMode} title="Focus mode (F11)">
+    <svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg>
+  </button>
 
   <button class="cb" onclick={cycleTheme} aria-label="Toggle theme" title="Theme: {$theme}">
-    <svg viewBox="0 0 24 24">
-      {#if $theme === 'dark'}
-        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
-      {:else if $theme === 'light'}
-        <circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/>
-      {:else}
-        <circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18V3z"/>
-      {/if}
-    </svg>
+    <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity=".15"/></svg>
   </button>
 
-  <button class="cb" onclick={toggleFocusMode} aria-label="Toggle focus mode" title="Focus mode (F11)">
-    <svg viewBox="0 0 24 24"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+  <button class="cb" onclick={toggleSettings} aria-label="Open settings panel" title="Settings">
+    <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg>
   </button>
 </div>
 
@@ -108,6 +105,10 @@
     background: var(--hover-bg);
   }
 
+  .cb.on {
+    background: var(--active-bg);
+  }
+
   .cb svg {
     width: 17px;
     height: 17px;
@@ -123,9 +124,8 @@
     stroke: var(--text-primary);
   }
 
-  .cb:focus-visible {
-    outline: 2px solid var(--border-focus);
-    outline-offset: 4px;
+  .cb.on svg {
+    stroke: var(--icon-active);
   }
 
   .cb-div {
@@ -151,36 +151,5 @@
 
   .cb-val:hover {
     background: var(--hover-bg);
-  }
-
-  .w-slider {
-    width: 80px;
-    height: 4px;
-    -webkit-appearance: none;
-    appearance: none;
-    background: var(--border);
-    border-radius: 2px;
-    outline: 0;
-    cursor: pointer;
-  }
-
-  .w-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 14px;
-    height: 14px;
-    background: var(--accent-solid);
-    border-radius: 50%;
-    cursor: pointer;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
-  }
-
-  .w-slider::-moz-range-thumb {
-    width: 14px;
-    height: 14px;
-    background: var(--accent-solid);
-    border-radius: 50%;
-    cursor: pointer;
-    border: 0;
-    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
   }
 </style>

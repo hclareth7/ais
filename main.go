@@ -9,6 +9,7 @@ import (
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
+	"github.com/wailsapp/wails/v2/pkg/options/linux"
 )
 
 //go:embed all:frontend/dist
@@ -62,11 +63,15 @@ func main() {
 		Height:    800,
 		MinWidth:  600,
 		MinHeight: 400,
+		Frameless: true,
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
-		BackgroundColour: &options.RGBA{R: 11, G: 13, B: 16, A: 1},
-		OnStartup:        app.startup,
+		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
+		Linux: &linux.Options{
+			WindowIsTranslucent: true,
+		},
+		OnStartup: app.startup,
 		OnShutdown:       app.shutdown,
 		Bind: []interface{}{
 			app,
