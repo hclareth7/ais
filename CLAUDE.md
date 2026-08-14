@@ -65,10 +65,13 @@ frontend/src/
 ```
 spec/
   Design.md                     Product soul, design principles, visual language, interaction specs
+  Architecture.md               System architecture, packages, data flow, dependencies
+  API.md                        Wails binding contract, methods, events, error handling
+  DataModels.md                 Data types, stores, state persistence, cross-boundary contracts
+  Security.md                   Threat model, invariants, mitigations
   mockups/
-    asi-ui-dark.png             Dark mode reference mockup
-    asi-ui-light.png            Light mode reference mockup
-    asi-ui-general-witgets.png  Component inventory: all states, panels, command palette, focus mode
+    ais-mockup.html             Interactive full-app mockup with all interactions and states
+    ais-widgets.html            Component inventory: all widget states and variants
 ```
 
 ### Wails Bindings (Go <-> Frontend)
@@ -126,7 +129,7 @@ cd frontend && npm run check # Svelte type checking
 | File | Why it matters |
 |------|---------------|
 | `spec/Design.md` | UI authority — all visual decisions reference this |
-| `spec/mockups/` | Visual reference — dark, light, and component inventory mockups |
+| `spec/mockups/` | Interactive HTML mockups — full app (ais-mockup.html) and widget inventory (ais-widgets.html) |
 | `app.go` | All Wails-bound methods, the Go-frontend bridge |
 | `style.css` | All CSS custom properties, theme definitions, layout tokens |
 | `renderer.ts` | Markdown rendering config, syntax highlighting setup |

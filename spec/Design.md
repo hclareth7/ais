@@ -802,11 +802,13 @@ Hides:
 - Tabs
 - TOC
 - Metadata
-- Controls
 
 Displays:
 
 - Document only
+- Floating control strip (bottom center) — zoom, theme, exit
+
+The floating control strip remains visible because it is the only way to exit focus mode without a keyboard.
 
 The document becomes the entire experience.
 
@@ -1552,6 +1554,19 @@ The reading experience must be excellent at every tier.
 Visual richness degrades gracefully.
 
 Functionality never degrades.
+
+---
+
+# Visual Reference
+
+Interactive mockups serve as the definitive visual implementation of this spec:
+
+- `spec/mockups/ais-mockup.html` — Full application with all interactions, panels, and states
+- `spec/mockups/ais-widgets.html` — Component inventory with all widget states and variants
+
+When implementing, open the HTML mockups in a browser alongside this document.
+
+If a mockup contradicts this spec, this spec wins.
 
 ---
 
