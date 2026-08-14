@@ -3,13 +3,16 @@
   import Sidebar from './lib/components/Sidebar.svelte';
   import TabBar from './lib/components/TabBar.svelte';
   import MarkdownViewer from './lib/components/MarkdownViewer.svelte';
-  import { loadFileTree, type FileNode } from './lib/stores/files';
-  import { openTab, closeTab, nextTab, prevTab, activeTabId, updateTabContent, tabs } from './lib/stores/tabs';
+  import ControlStrip from './lib/components/ControlStrip.svelte';
+  import CommandPalette from './lib/components/CommandPalette.svelte';
+  import { loadFileTree, rootPath, type FileNode } from './lib/stores/files';
+  import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, tabs } from './lib/stores/tabs';
   import { loadSettings } from './lib/stores/settings';
   import { readFile } from './lib/stores/files';
+  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen } from './lib/stores/ui';
   import { get } from 'svelte/store';
 
-  let sidebarVisible = $state(true);
+  let navVisible = $state(false);
 
   function handleFileClick(node: FileNode) {
     if (!node.isDir) {
@@ -17,9 +20,27 @@
     }
   }
 
+  function getFolderName(path: string): string {
+    if (!path) return 'ais';
+    const parts = path.split('/');
+    return parts[parts.length - 1] || 'ais';
+  }
+
   onMount(async () => {
     await loadSettings();
     await loadFileTree();
+
+    const starsEl = document.getElementById('stars');
+    if (starsEl) {
+      for (let i = 0; i < 80; i++) {
+        const star = document.createElement('div');
+        star.className = 'star';
+        star.style.left = `${(i * 17 + 31) % 100}%`;
+        star.style.top = `${(i * 23 + 7) % 100}%`;
+        star.style.opacity = `${0.2 + ((i * 13) % 5) * 0.1}`;
+        starsEl.appendChild(star);
+      }
+    }
 
     try {
       const { EventsOn } = await import('../wailsjs/runtime/runtime');
@@ -37,9 +58,17 @@
     }
 
     function handleKeydown(e: KeyboardEvent) {
+      if (e.ctrlKey && e.key === 'k') {
+        e.preventDefault();
+        toggleCommandPalette();
+        return;
+      }
+
+      if (get(commandPaletteOpen)) return;
+
       if (e.ctrlKey && e.key === 'b') {
         e.preventDefault();
-        sidebarVisible = !sidebarVisible;
+        navVisible = !navVisible;
         return;
       }
 
@@ -59,6 +88,39 @@
         }
         return;
       }
+
+      if (e.ctrlKey && (e.key === '=' || e.key === '+')) {
+        e.preventDefault();
+        zoomIn();
+        return;
+      }
+
+      if (e.ctrlKey && e.key === '-') {
+        e.preventDefault();
+        zoomOut();
+        return;
+      }
+
+      if (e.ctrlKey && e.key === '0') {
+        e.preventDefault();
+        resetZoom();
+        return;
+      }
+
+      if (e.key === 'F11') {
+        e.preventDefault();
+        toggleFocusMode();
+        return;
+      }
+
+      if (e.key === 'Escape') {
+        if (get(focusMode)) {
+          toggleFocusMode();
+        } else {
+          navVisible = false;
+        }
+        return;
+      }
     }
 
     document.addEventListener('keydown', handleKeydown);
@@ -69,26 +131,77 @@
   });
 </script>
 
-<div
-  class="app-shell"
-  style:grid-template-columns={sidebarVisible ? 'var(--sidebar-width) 1fr' : '0 1fr'}
->
-  {#if sidebarVisible}
-    <Sidebar onFileClick={handleFileClick} />
-  {/if}
-  <TabBar />
-  <MarkdownViewer />
+<div id="srAnnounce" class="sr-only" aria-live="polite" aria-atomic="true" role="status"></div>
+
+<div class="background" aria-hidden="true">
+  <div class="bg-sky"></div>
+  <div class="bg-mountains">
+    <div class="mountain m1"></div>
+    <div class="mountain m2"></div>
+    <div class="mountain m3"></div>
+  </div>
+  <div class="bg-fog"></div>
+  <div class="bg-stars" id="stars"></div>
 </div>
 
+<div
+  class="reader"
+  class:focus={$focusMode}
+  style="width: 82vw; height: 90vh;"
+  role="application"
+  aria-label="ais document reader"
+>
+  <div class="titlebar">
+    <div class="tb-left">
+      <span class="logo">ais</span>
+      <div class="breadcrumb">
+        <span>{getFolderName($rootPath)}</span>
+        {#if $activeTab}
+          <span class="sep">/</span>
+          <span>{$activeTab.name}</span>
+        {/if}
+      </div>
+    </div>
+  </div>
+
+  <TabBar />
+
+  <div class="content">
+    <div class="nav-trigger" role="presentation"></div>
+    <Sidebar onFileClick={handleFileClick} visible={navVisible} />
+
+    <MarkdownViewer zoomLevel={$zoomLevel} readingWidth={$readingWidth} />
+
+    <div class="toc-trigger" role="presentation"></div>
+
+    <div class="edge edge-left"></div>
+    <div class="edge edge-right"></div>
+
+    <div class="bottom-trigger" role="presentation"></div>
+    <ControlStrip />
+  </div>
+</div>
+
+<CommandPalette />
+
 <style>
-  .app-shell {
-    height: 100vh;
-    display: grid;
-    grid-template-rows: var(--tab-height) 1fr;
-    grid-template-columns: var(--sidebar-width) 1fr;
-    grid-template-areas:
-      "sidebar tabs"
-      "sidebar viewer";
-    transition: grid-template-columns 200ms ease-out;
+  .reader.focus {
+    width: 100vw !important;
+    height: 100vh !important;
+    border-radius: 0;
+    border-color: transparent;
+  }
+
+  .reader.focus :global(.titlebar) {
+    opacity: 0;
+    height: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .reader.focus :global(.tabbar) {
+    opacity: 0;
+    height: 0;
+    padding: 0;
   }
 </style>

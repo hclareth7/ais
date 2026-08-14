@@ -4,30 +4,21 @@
   import FileTree from './FileTree.svelte';
   import ThemeToggle from './ThemeToggle.svelte';
 
-  let { onFileClick }: {
+  let { onFileClick, visible = false }: {
     onFileClick: (node: FileNode) => void;
+    visible?: boolean;
   } = $props();
 
   let searchQuery = $state('');
-
-  function getFolderName(path: string): string {
-    if (!path) return 'ais';
-    const parts = path.split('/');
-    return parts[parts.length - 1] || 'ais';
-  }
 </script>
 
-<aside class="sidebar" aria-label="File explorer">
-  <div class="sidebar-header">
-    <span class="folder-name" title={$rootPath}>
-      {getFolderName($rootPath)}
-    </span>
-  </div>
-
-  <div class="search-container">
+<nav class="nav-panel" class:vis={visible} aria-label="File navigation">
+  <div class="nav-search">
+    <svg class="search-icon" viewBox="0 0 24 24">
+      <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+    </svg>
     <input
       type="text"
-      class="search-input"
       placeholder="Search files..."
       bind:value={searchQuery}
       aria-label="Search files"
@@ -41,6 +32,8 @@
     {/if}
   </div>
 
+  <div class="nav-label">Files</div>
+
   <div class="tree-container">
     <FileTree
       tree={$fileTree}
@@ -49,72 +42,51 @@
     />
   </div>
 
-  <div class="sidebar-footer">
+  <div class="nav-bottom">
     <ThemeToggle />
   </div>
-</aside>
+</nav>
 
 <style>
-  .sidebar {
-    grid-area: sidebar;
-    background: var(--bg-secondary);
-    border-right: 1px solid var(--border);
+  .nav-search {
     display: flex;
-    flex-direction: column;
-    overflow: hidden;
-    height: 100vh;
-  }
-
-  .sidebar-header {
-    padding: 12px 16px;
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-  }
-
-  .folder-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--text-primary);
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    display: block;
-  }
-
-  .search-container {
-    padding: 8px 12px;
-    flex-shrink: 0;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 10px;
+    background: var(--hover-bg);
+    border-radius: 10px;
+    margin-bottom: 6px;
     position: relative;
   }
 
-  .search-input {
-    width: 100%;
-    padding: 6px 28px 6px 10px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-primary);
+  .search-icon {
+    width: 16px;
+    height: 16px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  .nav-search input {
+    background: 0;
+    border: 0;
+    outline: 0;
     color: var(--text-primary);
     font-size: 13px;
-    outline: none;
-    box-sizing: border-box;
+    font-family: inherit;
+    width: 100%;
   }
 
-  .search-input::placeholder {
-    color: var(--text-muted);
-  }
-
-  .search-input:focus {
-    border-color: var(--accent);
+  .nav-search input::placeholder {
+    color: var(--text-tertiary);
   }
 
   .search-clear {
-    position: absolute;
-    right: 18px;
-    top: 50%;
-    transform: translateY(-50%);
     background: none;
     border: none;
-    color: var(--text-muted);
+    color: var(--text-tertiary);
     cursor: pointer;
     font-size: 16px;
     padding: 0 4px;
@@ -125,15 +97,24 @@
     color: var(--text-primary);
   }
 
+  .nav-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    padding: 14px 10px 6px;
+  }
+
   .tree-container {
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
   }
 
-  .sidebar-footer {
-    padding: 8px 12px;
+  .nav-bottom {
+    margin-top: auto;
+    padding-top: 10px;
     border-top: 1px solid var(--border);
-    flex-shrink: 0;
   }
 </style>

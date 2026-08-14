@@ -28,12 +28,12 @@
 
 <style>
   .file-tree {
-    padding: 4px;
+    padding: 4px 0;
   }
 
   .empty-tree {
     padding: 16px;
-    color: var(--text-muted);
+    color: var(--text-tertiary);
     font-size: 14px;
     text-align: center;
   }

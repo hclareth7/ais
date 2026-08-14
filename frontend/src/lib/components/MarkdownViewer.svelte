@@ -3,6 +3,11 @@
   import { activeTab, saveScrollPos } from '../stores/tabs';
   import WelcomeScreen from './WelcomeScreen.svelte';
 
+  let { zoomLevel = 100, readingWidth = 720 }: {
+    zoomLevel?: number;
+    readingWidth?: number;
+  } = $props();
+
   let viewerEl: HTMLElement | undefined = $state();
   let renderedHtml = $derived($activeTab ? renderMarkdown($activeTab.content) : '');
 
@@ -53,99 +58,115 @@
   }
 </script>
 
-<div class="viewer-area" style="grid-area: viewer;">
-  {#if $activeTab}
+{#if $activeTab}
+  <div
+    class="doc"
+    bind:this={viewerEl}
+    role="article"
+    aria-label={$activeTab.name}
+  >
     <div
-      class="viewer-scroll"
-      bind:this={viewerEl}
-      role="article"
-      aria-label={$activeTab.name}
+      class="doc-inner"
+      role="presentation"
+      onclick={handleContentClick}
+      onkeydown={() => {}}
+      style="max-width: {readingWidth}px; transform: scale({zoomLevel / 100}); transform-origin: top center;"
     >
-      <div
-        class="markdown-body"
-        role="presentation"
-        onclick={handleContentClick}
-        onkeydown={() => {}}
-      >
-        {@html renderedHtml}
-      </div>
+      {@html renderedHtml}
     </div>
-  {:else}
-    <WelcomeScreen />
-  {/if}
-</div>
+  </div>
+{:else}
+  <WelcomeScreen />
+{/if}
 
 <style>
-  .viewer-area {
-    overflow: hidden;
-    background: var(--bg-primary);
-  }
-
-  .viewer-scroll {
-    height: 100%;
+  .doc {
+    flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
+    padding: 36px 0 80px;
+    display: flex;
+    justify-content: center;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) transparent;
+    user-select: text;
   }
 
-  .markdown-body {
-    max-width: 720px;
-    margin: 0 auto;
-    padding: 40px 32px 48px;
+  .doc-inner {
+    width: 100%;
+    max-width: var(--reading-max-width);
+    padding: 0 32px;
+    line-height: 1.75;
     color: var(--text-primary);
     font-size: 16px;
-    line-height: 1.75;
+    transition: max-width 0.2s;
   }
 
-  .markdown-body :global(h1) {
-    font-size: 30px;
-    line-height: 40px;
-    font-weight: 700;
-    margin-top: 48px;
-    margin-bottom: 24px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
-  }
-
-  .markdown-body :global(h1:first-child) {
+  /* ── Headings ── */
+  .doc-inner :global(h1) {
     font-size: 36px;
-    line-height: 44px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.2;
+    margin-bottom: 8px;
+    margin-top: 48px;
+    cursor: pointer;
+    transition: color 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .doc-inner :global(h1:first-child) {
     margin-top: 0;
   }
 
-  .markdown-body :global(h2) {
-    font-size: 24px;
-    line-height: 32px;
-    font-weight: 700;
-    margin-top: 40px;
-    margin-bottom: 20px;
-    padding-bottom: 6px;
-    border-bottom: 1px solid var(--border);
-    cursor: pointer;
+  .doc-inner :global(h1:hover) {
+    color: var(--accent-text);
   }
 
-  .markdown-body :global(h3) {
-    font-size: 20px;
-    line-height: 28px;
+  .doc-inner :global(h2) {
+    font-size: 24px;
     font-weight: 600;
-    margin-top: 32px;
+    letter-spacing: -0.02em;
+    margin-top: 48px;
     margin-bottom: 16px;
     cursor: pointer;
+    transition: color 0.12s;
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
-  .markdown-body :global(h4) {
+  .doc-inner :global(h2:hover) {
+    color: var(--accent-text);
+  }
+
+  .doc-inner :global(h3) {
     font-size: 18px;
-    line-height: 28px;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 12px;
+    cursor: pointer;
+    transition: color 0.12s;
+  }
+
+  .doc-inner :global(h3:hover) {
+    color: var(--accent-text);
+  }
+
+  .doc-inner :global(h4) {
+    font-size: 16px;
     font-weight: 600;
     margin-top: 24px;
     margin-bottom: 12px;
     cursor: pointer;
+    transition: color 0.12s;
   }
 
-  .markdown-body :global(h5),
-  .markdown-body :global(h6) {
-    font-size: 16px;
-    line-height: 24px;
+  .doc-inner :global(h5),
+  .doc-inner :global(h6) {
+    font-size: 14px;
     font-weight: 600;
     color: var(--text-secondary);
     margin-top: 20px;
@@ -153,188 +174,204 @@
     cursor: pointer;
   }
 
-  .markdown-body :global(h1.collapsed::after),
-  .markdown-body :global(h2.collapsed::after),
-  .markdown-body :global(h3.collapsed::after),
-  .markdown-body :global(h4.collapsed::after),
-  .markdown-body :global(h5.collapsed::after),
-  .markdown-body :global(h6.collapsed::after) {
-    content: ' ▶';
+  .doc-inner :global(h1.collapsed::after),
+  .doc-inner :global(h2.collapsed::after),
+  .doc-inner :global(h3.collapsed::after),
+  .doc-inner :global(h4.collapsed::after),
+  .doc-inner :global(h5.collapsed::after),
+  .doc-inner :global(h6.collapsed::after) {
+    content: ' \25B6';
     font-size: 12px;
-    color: var(--text-muted);
+    color: var(--text-tertiary);
     margin-left: 8px;
   }
 
-  .markdown-body :global(p) {
-    margin: 0 0 20px;
+  /* ── Body ── */
+  .doc-inner :global(p) {
+    margin-bottom: 16px;
+    color: var(--text-secondary);
+    font-size: 16px;
+    line-height: 1.75;
   }
 
-  .markdown-body :global(ul),
-  .markdown-body :global(ol) {
-    margin: 0 0 20px;
+  .doc-inner :global(ul),
+  .doc-inner :global(ol) {
+    margin: 0 0 16px;
     padding-left: 24px;
+    color: var(--text-secondary);
   }
 
-  .markdown-body :global(li) {
-    margin-bottom: 4px;
+  .doc-inner :global(li) {
+    margin-bottom: 6px;
+    line-height: 1.65;
   }
 
-  .markdown-body :global(li ul),
-  .markdown-body :global(li ol) {
+  .doc-inner :global(li ul),
+  .doc-inner :global(li ol) {
     margin-top: 4px;
     margin-bottom: 0;
   }
 
-  .markdown-body :global(blockquote) {
+  .doc-inner :global(blockquote) {
     margin: 0 0 20px;
     padding: 16px;
-    background: var(--bg-inset);
-    border-left: 3px solid var(--accent);
+    background: var(--hover-bg);
+    border-left: 3px solid var(--accent-solid);
     border-radius: 0 6px 6px 0;
   }
 
-  .markdown-body :global(blockquote p:last-child) {
+  .doc-inner :global(blockquote p:last-child) {
     margin-bottom: 0;
   }
 
-  .markdown-body :global(pre.code-block) {
-    margin: 0 0 20px;
+  /* ── Code ── */
+  .doc-inner :global(pre.code-block) {
+    margin: 16px 0 24px;
     padding: 0;
-    background: var(--bg-code);
-    border-radius: 6px;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    border-radius: 12px;
     overflow: hidden;
     position: relative;
   }
 
-  .markdown-body :global(.code-lang) {
+  .doc-inner :global(.code-lang) {
     position: absolute;
     top: 8px;
     right: 12px;
-    font-size: 12px;
-    color: var(--text-muted);
+    font-size: 11px;
+    color: var(--text-tertiary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
     pointer-events: none;
   }
 
-  .markdown-body :global(pre.code-block code) {
+  .doc-inner :global(pre.code-block code) {
     display: block;
-    padding: 16px;
+    padding: 14px 18px;
     overflow-x: auto;
     font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
     font-size: 14px;
-    line-height: 22px;
+    line-height: 1.6;
     background: none;
     border-radius: 0;
+    border: none;
+    color: var(--text-secondary);
   }
 
-  .markdown-body :global(code) {
-    background: var(--bg-code);
-    padding: 2px 6px;
-    border-radius: 4px;
+  .doc-inner :global(code) {
     font-family: 'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'SF Mono', Consolas, monospace;
     font-size: 14px;
+    background: var(--code-bg);
+    border: 1px solid var(--code-border);
+    padding: 2px 6px;
+    border-radius: 4px;
   }
 
-  .markdown-body :global(hr) {
+  /* ── Misc ── */
+  .doc-inner :global(hr) {
     border: none;
-    border-top: 1px solid var(--border);
-    margin: 32px 0;
+    height: 1px;
+    background: var(--border);
+    margin: 24px 0;
   }
 
-  .markdown-body :global(table) {
+  .doc-inner :global(table) {
     width: 100%;
     border-collapse: collapse;
     margin: 0 0 20px;
   }
 
-  .markdown-body :global(th),
-  .markdown-body :global(td) {
+  .doc-inner :global(th),
+  .doc-inner :global(td) {
     padding: 12px 16px;
     border: 1px solid var(--border);
     text-align: left;
   }
 
-  .markdown-body :global(th) {
-    background: var(--bg-inset);
+  .doc-inner :global(th) {
+    background: var(--hover-bg);
     font-weight: 600;
   }
 
-  .markdown-body :global(img) {
+  .doc-inner :global(img) {
     max-width: 100%;
     border-radius: 6px;
     margin: 8px auto 20px;
     display: block;
   }
 
-  .markdown-body :global(a) {
-    color: var(--text-link);
+  .doc-inner :global(a) {
+    color: var(--accent-text);
     text-decoration: none;
   }
 
-  .markdown-body :global(a:hover) {
+  .doc-inner :global(a:hover) {
     text-decoration: underline;
   }
 
-  .markdown-body :global(strong) {
+  .doc-inner :global(strong) {
     font-weight: 700;
+    color: var(--text-primary);
   }
 
-  .markdown-body :global(del) {
+  .doc-inner :global(del) {
     text-decoration: line-through;
-    color: var(--text-muted);
+    color: var(--text-tertiary);
   }
 
-  /* Syntax highlighting */
-  .markdown-body :global(.hljs-keyword),
-  .markdown-body :global(.hljs-selector-tag) {
-    color: var(--hl-keyword);
+  /* ── Syntax Highlighting ── */
+  .doc-inner :global(.hljs-keyword),
+  .doc-inner :global(.hljs-selector-tag) {
+    color: var(--code-kw);
   }
 
-  .markdown-body :global(.hljs-string),
-  .markdown-body :global(.hljs-regexp) {
-    color: var(--hl-string);
+  .doc-inner :global(.hljs-string),
+  .doc-inner :global(.hljs-regexp) {
+    color: var(--code-str);
   }
 
-  .markdown-body :global(.hljs-comment),
-  .markdown-body :global(.hljs-doctag) {
-    color: var(--hl-comment);
+  .doc-inner :global(.hljs-comment),
+  .doc-inner :global(.hljs-doctag) {
+    color: var(--code-cm);
     font-style: italic;
   }
 
-  .markdown-body :global(.hljs-title),
-  .markdown-body :global(.hljs-title.function_) {
-    color: var(--hl-function);
+  .doc-inner :global(.hljs-title),
+  .doc-inner :global(.hljs-title.function_) {
+    color: var(--code-fn);
   }
 
-  .markdown-body :global(.hljs-number),
-  .markdown-body :global(.hljs-literal) {
-    color: var(--hl-number);
+  .doc-inner :global(.hljs-number),
+  .doc-inner :global(.hljs-literal) {
+    color: var(--code-num);
   }
 
-  .markdown-body :global(.hljs-type),
-  .markdown-body :global(.hljs-built_in),
-  .markdown-body :global(.hljs-title.class_) {
-    color: var(--hl-type);
+  .doc-inner :global(.hljs-type),
+  .doc-inner :global(.hljs-built_in),
+  .doc-inner :global(.hljs-title.class_) {
+    color: var(--code-type);
   }
 
-  .markdown-body :global(.hljs-variable),
-  .markdown-body :global(.hljs-attr) {
-    color: var(--hl-variable);
+  .doc-inner :global(.hljs-variable),
+  .doc-inner :global(.hljs-attr) {
+    color: var(--text-secondary);
   }
 
-  .markdown-body :global(.hljs-operator) {
-    color: var(--hl-operator);
+  .doc-inner :global(.hljs-operator) {
+    color: var(--code-kw);
   }
 
-  .markdown-body :global(.hljs-punctuation) {
-    color: var(--hl-punctuation);
+  .doc-inner :global(.hljs-punctuation) {
+    color: var(--text-secondary);
   }
 
-  .markdown-body :global(.hljs-meta),
-  .markdown-body :global(.hljs-symbol) {
-    color: var(--hl-keyword);
+  .doc-inner :global(.hljs-meta),
+  .doc-inner :global(.hljs-symbol) {
+    color: var(--code-kw);
   }
 
-  .markdown-body :global(.hljs-params) {
-    color: var(--hl-variable);
+  .doc-inner :global(.hljs-params) {
+    color: var(--text-secondary);
   }
 </style>

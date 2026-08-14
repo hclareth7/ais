@@ -40,33 +40,37 @@
   .theme-toggle {
     display: flex;
     align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
-    border: 1px solid var(--border);
-    border-radius: 6px;
-    background: var(--bg-primary);
-    color: var(--text-secondary);
-    cursor: pointer;
+    gap: 9px;
+    padding: 7px 10px;
     font-size: 14px;
-    transition: background-color 150ms ease, color 150ms ease;
+    color: var(--text-secondary);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    border: none;
+    background: none;
+    font-family: inherit;
+    width: 100%;
   }
 
   .theme-toggle:hover {
-    background: var(--bg-elevated);
+    background: var(--hover-bg);
     color: var(--text-primary);
   }
 
   .theme-toggle:focus-visible {
-    outline: 2px solid var(--accent);
-    outline-offset: 2px;
+    outline: 2px solid var(--border-focus);
+    outline-offset: 4px;
   }
 
   .theme-icon {
     font-size: 16px;
     line-height: 1;
+    width: 16px;
+    text-align: center;
   }
 
   .theme-label {
-    font-size: 12px;
+    font-size: 13px;
   }
 </style>
