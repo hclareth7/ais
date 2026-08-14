@@ -1,0 +1,118 @@
+@import "tailwindcss";
+
+:root {
+  --bg-primary: #F5F4EF;
+  --bg-secondary: #ECEAE4;
+  --bg-elevated: #FFFFFF;
+  --bg-code: #F5F4EF;
+  --bg-inset: #ECEBE6;
+  --text-primary: #1D1D1F;
+  --text-secondary: #636366;
+  --text-muted: #AEAEB2;
+  --text-link: #3B5BDB;
+  --accent: #3B5BDB;
+  --accent-hover: #2B4BC6;
+  --accent-subtle: #EDF0FC;
+  --border: #E5E4DF;
+  --border-strong: #C7C7C3;
+  --scrollbar-thumb: #C7C7C3;
+  --scrollbar-track: transparent;
+  --semantic-success: #2D8A4E;
+  --semantic-warning: #D97706;
+  --semantic-error: #DC2626;
+  --semantic-info: #3B5BDB;
+
+  --hl-keyword: #8250DF;
+  --hl-string: #0A3069;
+  --hl-comment: #6E7781;
+  --hl-function: #8250DF;
+  --hl-number: #0550AE;
+  --hl-type: #953800;
+  --hl-variable: #24292F;
+  --hl-operator: #CF222E;
+  --hl-punctuation: #1D1D1F;
+
+  --sidebar-width: 260px;
+  --reading-max-width: 720px;
+  --toc-width: 220px;
+  --tab-height: 40px;
+}
+
+.dark {
+  --bg-primary: #1C1C1E;
+  --bg-secondary: #141416;
+  --bg-elevated: #2C2C2E;
+  --bg-code: #242426;
+  --bg-inset: #28282A;
+  --text-primary: #E5E5E7;
+  --text-secondary: #98989D;
+  --text-muted: #636366;
+  --text-link: #8BA3FF;
+  --accent: #6B8AFF;
+  --accent-hover: #8BA3FF;
+  --accent-subtle: #1E2340;
+  --border: #38383A;
+  --border-strong: #48484A;
+  --scrollbar-thumb: #48484A;
+  --scrollbar-track: transparent;
+  --semantic-success: #30D158;
+  --semantic-warning: #FFD60A;
+  --semantic-error: #FF453A;
+  --semantic-info: #6B8AFF;
+
+  --hl-keyword: #D2A8FF;
+  --hl-string: #A5D6FF;
+  --hl-comment: #8B949E;
+  --hl-function: #D2A8FF;
+  --hl-number: #79C0FF;
+  --hl-type: #FFA657;
+  --hl-variable: #E6EDF3;
+  --hl-operator: #FF7B72;
+  --hl-punctuation: #E5E5E7;
+}
+
+html {
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+}
+
+body {
+  margin: 0;
+  overflow: hidden;
+  height: 100vh;
+}
+
+#app {
+  height: 100vh;
+  display: grid;
+  grid-template-rows: var(--tab-height) 1fr;
+  grid-template-columns: var(--sidebar-width) 1fr;
+  grid-template-areas:
+    "sidebar tabs"
+    "sidebar viewer";
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--border-strong);
+}
+
+::selection {
+  background-color: var(--accent-subtle);
+  color: var(--text-primary);
+}
