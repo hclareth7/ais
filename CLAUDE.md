@@ -6,14 +6,15 @@ ais is a Go desktop application that visualizes markdown files. Built with Wails
 
 ## Orchestration
 
-**@duit is the primary entry point for multi-domain tasks.** Do not manually chain agents — invoke `@duit` and it will select the right agents and skills automatically.
+**@duit is the primary entry point for multi-domain tasks.** It sizes the task, detects project state, and delegates to the right agents automatically.
 
-### Relevant Flows
+### Execution Patterns
 
-- **Feature Development:** `planner -> steve -> software-architect -> developer -> /code-review -> /security-review`
-- **UI-First Development:** `steve -> /ux-design -> /ui-to-code -> developer -> /code-review`
-- **Full PR Review:** `/code-review -> security -> /security-review`
-- **New Project Bootstrap:** `/project-bootstrap -> planner + steve -> software-architect -> security -> developer`
+| Pattern | When | Flow |
+|---------|------|------|
+| **DIRECT** | Quick fixes, bugs, small changes | operator → /code-review |
+| **SPEC-THEN-BUILD** | New features, enhancements | planner (+steve if UI) → developer → /code-review + /security-review |
+| **FULL-SDD** | New projects, major rewrites | /project-bootstrap → planner + steve (full spec/) → developer → reviews |
 
 For single-domain tasks (pure code, pure architecture, pure UI), invoke the specific agent directly: `@developer`, `@software-architect`, `@steve`, etc.
 
