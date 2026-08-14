@@ -1,0 +1,1267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ais — interactive mockup</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+
+  :root{
+    --bg:#0B0D10;
+    --surface:rgba(18,20,24,0.75);
+    --surface-solid:#121418;
+    --surface-elevated:rgba(24,27,32,0.92);
+    --text-primary:#F5F7FA;
+    --text-secondary:#B6BCC6;
+    --text-tertiary:#6B7280;
+    --text-ghost:#3D4450;
+    --border:rgba(255,255,255,0.08);
+    --border-hover:rgba(255,255,255,0.14);
+    --border-focus:rgba(120,160,255,0.5);
+    --accent:rgba(120,160,255,0.6);
+    --accent-solid:#7BA0FF;
+    --accent-dim:rgba(120,160,255,0.12);
+    --accent-text:#A8C4FF;
+    --hover-bg:rgba(255,255,255,0.06);
+    --active-bg:rgba(120,160,255,0.12);
+    --nav-bg:rgba(255,255,255,0.06);
+    --nav-border:rgba(255,255,255,0.05);
+    --code-bg:rgba(255,255,255,0.04);
+    --code-border:rgba(255,255,255,0.06);
+    --scrollbar-thumb:rgba(255,255,255,0.1);
+    --icon-stroke:#B6BCC6;
+    --icon-active:#A8C4FF;
+    --danger:#EF4444;
+    --success:#10B981;
+    --warning:#F59E0B;
+    --warning-dim:rgba(245,158,11,0.1);
+    --hl-yellow:rgba(250,204,21,0.2);
+    --hl-green:rgba(74,222,128,0.15);
+    --hl-blue:rgba(96,165,250,0.15);
+    --hl-pink:rgba(244,114,182,0.15);
+    --grad-start:#0a1628;--grad-mid:#0f1a2e;--grad-end:#0B0D10;
+    --mtn1:#1a2744;--mtn2:#14203a;--mtn3:#0e1830;
+    --code-kw:#C792EA;--code-fn:#82AAFF;--code-str:#C3E88D;--code-cm:#546E7A;--code-type:#FFCB6B;--code-num:#F78C6C;
+    --reader-radius:28px;
+    --surface-opacity:0.75;
+  }
+  .light{
+    --bg:#F4F5F7;
+    --surface:rgba(255,255,255,0.78);
+    --surface-solid:#FFFFFF;
+    --surface-elevated:rgba(255,255,255,0.95);
+    --text-primary:#111827;
+    --text-secondary:#4B5563;
+    --text-tertiary:#9CA3AF;
+    --text-ghost:#D1D5DB;
+    --border:rgba(0,0,0,0.06);
+    --border-hover:rgba(0,0,0,0.12);
+    --border-focus:rgba(60,100,220,0.5);
+    --accent:rgba(60,100,220,0.7);
+    --accent-solid:#3B6CE7;
+    --accent-dim:rgba(60,100,220,0.08);
+    --accent-text:#3B6CE7;
+    --hover-bg:rgba(0,0,0,0.04);
+    --active-bg:rgba(60,100,220,0.08);
+    --nav-bg:rgba(255,255,255,0.7);
+    --nav-border:rgba(0,0,0,0.06);
+    --code-bg:rgba(0,0,0,0.03);
+    --code-border:rgba(0,0,0,0.06);
+    --scrollbar-thumb:rgba(0,0,0,0.12);
+    --icon-stroke:#4B5563;
+    --icon-active:#3B6CE7;
+    --warning-dim:rgba(217,119,6,0.08);
+    --hl-yellow:rgba(250,204,21,0.3);
+    --hl-green:rgba(74,222,128,0.2);
+    --hl-blue:rgba(96,165,250,0.2);
+    --hl-pink:rgba(244,114,182,0.2);
+    --grad-start:#c8d4e8;--grad-mid:#d4c8b8;--grad-end:#F4F5F7;
+    --mtn1:#b8c4d8;--mtn2:#c8b8a8;--mtn3:#d8ccc0;
+    --code-kw:#7C3AED;--code-fn:#2563EB;--code-str:#059669;--code-cm:#9CA3AF;--code-type:#D97706;--code-num:#DC2626;
+    --surface-opacity:0.78;
+  }
+
+  /* [FIX #1] user-select: text on body, none only on UI chrome */
+  body{font-family:'Inter',-apple-system,BlinkMacSystemFont,sans-serif;background:var(--bg);color:var(--text-primary);overflow:hidden;height:100vh;width:100vw;transition:background .1s}
+
+  /* [FIX #9] theme transition 300ms -> 100ms */
+  .titlebar,.tabbar,.controls,.nav-panel,.toc-panel,.settings,.qa,.ctx{user-select:none}
+  .doc{user-select:text}
+
+  /* [FIX #4] Focus indicators — spec: outline 2px, offset 4px */
+  .wb:focus-visible,.cb:focus-visible,.tab:focus-visible,.nv:focus-visible,.qb:focus-visible,
+  .cblock-copy:focus-visible,.cblock-fold:focus-visible,.th-opt:focus-visible,
+  .cx:focus-visible,.ti:focus-visible,.pal-tab:focus-visible,.pr:focus-visible,
+  .logo:focus-visible,.w-slider:focus-visible{
+    outline:2px solid var(--border-focus);outline-offset:4px;border-radius:inherit;
+  }
+
+  /* [FIX #5] prefers-reduced-motion */
+  @media(prefers-reduced-motion:reduce){
+    *,*::before,*::after{transition-duration:0s!important;animation-duration:0s!important;animation:none!important}
+  }
+
+  /* ── SVG icon base ── */
+  .i{display:inline-flex;align-items:center;justify-content:center;flex-shrink:0}
+  .i svg{width:18px;height:18px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke .12s}
+
+  /* ── Background ── */
+  .background{position:fixed;inset:0;z-index:0;overflow:hidden}
+  .bg-sky{position:absolute;inset:0;background:linear-gradient(180deg,var(--grad-start)0%,var(--grad-mid)50%,var(--grad-end)100%);transition:background .1s}
+  .bg-mountains{position:absolute;bottom:15%;left:0;right:0;height:50%}
+  .mountain{position:absolute;bottom:0;border-radius:60% 60% 0 0;transition:background .1s}
+  .m1{left:-10%;width:50%;height:80%;background:var(--mtn1);opacity:.5}
+  .m2{left:25%;width:55%;height:90%;background:var(--mtn2);opacity:.4}
+  .m3{right:-10%;width:60%;height:70%;background:var(--mtn3);opacity:.35}
+  .bg-fog{position:absolute;bottom:10%;left:0;right:0;height:30%;background:linear-gradient(0deg,var(--bg)0%,transparent 100%);transition:background .1s}
+  .bg-stars{position:absolute;inset:0;transition:opacity .1s}
+  .light .bg-stars{opacity:0}
+  .star{position:absolute;width:2px;height:2px;background:rgba(255,255,255,.4);border-radius:50%}
+
+  /* ── Reader surface ── */
+  /* [FIX #10] border-radius uses --reader-radius variable for configurability */
+  .reader{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--surface);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border-radius:var(--reader-radius);border:1px solid var(--border);box-shadow:0 20px 80px rgba(0,0,0,.20),0 8px 24px rgba(0,0,0,.12);z-index:10;display:flex;flex-direction:column;overflow:hidden;transition:width .12s,height .12s,border-radius .12s}
+  .reader.focus{width:100vw!important;height:100vh!important;border-radius:0;border-color:transparent}
+
+  /* streaming pulse */
+  .stream-border{position:absolute;inset:-1px;border-radius:var(--reader-radius);pointer-events:none;z-index:5;opacity:0;transition:opacity .12s}
+  .stream-border.on{opacity:1;animation:pulse 2s ease-in-out infinite}
+  @keyframes pulse{0%,100%{box-shadow:inset 0 0 0 1px rgba(120,160,255,.15)}50%{box-shadow:inset 0 0 0 1px rgba(120,160,255,.4)}}
+  .reader.focus .stream-border{border-radius:0}
+
+  /* ── Titlebar ── */
+  .titlebar{display:flex;align-items:center;justify-content:space-between;padding:14px 22px;flex-shrink:0;transition:opacity .18s,height .18s,padding .18s;overflow:hidden}
+  .reader.focus .titlebar{opacity:0;height:0;padding:0}
+  .tb-left{display:flex;align-items:center;gap:14px}
+  .logo{font-weight:600;font-size:18px;letter-spacing:-.02em;cursor:pointer;opacity:.9;transition:opacity .12s;border:none;background:0;color:var(--text-primary);font-family:inherit;padding:0}
+  .logo:hover{opacity:1}
+  .breadcrumb{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-tertiary)}
+  .breadcrumb span{cursor:pointer;transition:color .12s}
+  .breadcrumb span:hover{color:var(--text-secondary)}
+  .breadcrumb .sep{opacity:.4}
+  .tb-right{display:flex;align-items:center;gap:2px}
+  .wb{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:none;background:0;color:var(--text-tertiary);cursor:pointer;border-radius:10px;transition:background .12s,color .12s}
+  .wb:hover{background:var(--hover-bg);color:var(--text-secondary)}
+  .wb.cl:hover{background:rgba(239,68,68,.15);color:#EF4444}
+  .wb svg{width:14px;height:14px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;fill:none}
+
+  /* ── Tabs ── */
+  /* [FIX #8] tabbar hidden when single tab */
+  .tabbar{display:flex;align-items:center;gap:3px;padding:0 22px 6px;flex-shrink:0;transition:opacity .12s,height .12s,padding .12s;overflow:hidden}
+  .tabbar.single{opacity:0;height:0;padding:0;pointer-events:none}
+  .reader.focus .tabbar{opacity:0;height:0;padding:0}
+  .tab{display:flex;align-items:center;gap:7px;padding:5px 14px;font-size:13px;color:var(--text-tertiary);cursor:pointer;border-radius:8px;white-space:nowrap;transition:color .12s,background .12s;position:relative}
+  .tab:hover{color:var(--text-secondary);background:var(--hover-bg)}
+  .tab.on{color:var(--text-primary);background:var(--accent-dim)}
+  .tab.pinned::before{content:'';position:absolute;left:6px;top:50%;transform:translateY(-50%);width:5px;height:5px;border-radius:50%;background:var(--accent-solid)}
+  .tab.pinned{padding-left:18px}
+  .tab .tc{width:16px;height:16px;display:flex;align-items:center;justify-content:center;border-radius:4px;opacity:0;transition:opacity .12s}
+  .tab .tc svg{width:10px;height:10px;stroke:var(--text-tertiary);stroke-width:2}
+  .tab:hover .tc{opacity:.5}
+  .tab .tc:hover{opacity:1;background:var(--hover-bg)}
+
+  /* ── Content area ── */
+  .content{flex:1;overflow:hidden;position:relative;display:flex}
+
+  /* ── Document ── */
+  .doc{flex:1;overflow-y:auto;padding:36px 0 80px;display:flex;justify-content:center;scrollbar-width:thin;scrollbar-color:var(--scrollbar-thumb) transparent;transition:padding .2s}
+  .doc::-webkit-scrollbar{width:6px}
+  .doc::-webkit-scrollbar-track{background:0}
+  .doc::-webkit-scrollbar-thumb{background:var(--scrollbar-thumb);border-radius:3px}
+  .doc-inner{max-width:90%;line-height:1.75;transition:width .2s}
+  .doc-inner h1{font-size:36px;font-weight:700;letter-spacing:-.03em;line-height:1.2;margin-bottom:8px}
+  .doc-sub{font-size:16px;color:var(--text-secondary);margin-bottom:24px;font-weight:300}
+  .doc-hr{border:none;height:1px;background:var(--border);margin:24px 0}
+
+  /* [FEATURE] heading collapse — chevron + collapsible sections */
+  .doc-inner h2{font-size:24px;font-weight:600;letter-spacing:-.02em;margin-top:48px;margin-bottom:16px;cursor:pointer;transition:color .12s;display:flex;align-items:center;gap:8px}
+  .doc-inner h2:hover{color:var(--accent-text)}
+  .doc-inner h2 .h-chev{width:14px;height:14px;stroke:var(--text-tertiary);stroke-width:1.5;stroke-linecap:round;fill:none;transition:transform .15s,stroke .12s;flex-shrink:0}
+  .doc-inner h2:hover .h-chev{stroke:var(--accent-text)}
+  .doc-inner h2.collapsed .h-chev{transform:rotate(-90deg)}
+  .doc-section{transition:max-height .2s ease,opacity .15s;overflow:hidden}
+  .doc-section.collapsed{max-height:0!important;opacity:0;margin:0;padding:0}
+
+  .doc-inner h3{font-size:18px;font-weight:600;margin-top:32px;margin-bottom:12px}
+  .doc-inner p{margin-bottom:16px;color:var(--text-secondary);font-size:16px;line-height:1.75}
+  .doc-inner ul{margin-bottom:16px;padding-left:24px;color:var(--text-secondary)}
+  .doc-inner li{margin-bottom:6px;line-height:1.65}
+  .doc-inner code{font-family:'JetBrains Mono',monospace;font-size:14px;background:var(--code-bg);border:1px solid var(--code-border);padding:2px 6px;border-radius:4px}
+
+  /* code blocks */
+  .cblock{background:var(--code-bg);border:1px solid var(--code-border);border-radius:12px;margin:16px 0 24px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:14px;line-height:1.6;color:var(--text-secondary);position:relative}
+  .cblock-head{display:flex;align-items:center;justify-content:space-between;padding:6px 16px;border-bottom:1px solid var(--border)}
+  .cblock-lang{font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:.05em}
+  .cblock-copy{width:28px;height:28px;display:flex;align-items:center;justify-content:center;border:none;background:0;cursor:pointer;border-radius:6px;transition:background .12s}
+  .cblock-copy:hover{background:var(--hover-bg)}
+  .cblock-copy svg{width:14px;height:14px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;fill:none;transition:stroke .12s}
+  .cblock-copy:hover svg{stroke:var(--text-primary)}
+  .cblock-body{padding:14px 18px}
+  .cblock-fold{display:flex;align-items:center;justify-content:center;gap:6px;padding:8px 16px;cursor:pointer;background:var(--hover-bg);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-tertiary);transition:background .12s,color .12s;border:none;width:100%;font-family:'JetBrains Mono',monospace}
+  .cblock-fold:hover{background:var(--active-bg);color:var(--accent-text)}
+  .cblock-fold svg{width:12px;height:12px;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;fill:none;transition:transform .2s}
+  .cblock-fold.open svg{transform:rotate(180deg)}
+  .cblock-hidden{display:none}
+  .kw{color:var(--code-kw)}.fn{color:var(--code-fn)}.str{color:var(--code-str)}.cm{color:var(--code-cm)}.ty{color:var(--code-type)}.num{color:var(--code-num)}
+
+  /* arch diagram */
+  .arch{background:var(--code-bg);border:1px solid var(--code-border);border-radius:12px;padding:28px;margin:24px 0;display:flex;justify-content:center}
+  .arch svg{width:100%;max-width:560px}
+  .arch text{font-family:'Inter',sans-serif;font-size:12px;fill:var(--text-secondary)}
+  .arch rect{fill:none;stroke:var(--text-tertiary);stroke-width:1;rx:6}
+  .arch line{stroke:var(--text-tertiary);stroke-width:1;fill:none}
+
+  .read-time{position:absolute;bottom:20px;right:28px;font-size:12px;color:var(--text-tertiary)}
+  .reader.focus .read-time{opacity:0}
+
+  /* ── Nav panel ── */
+  .nav-trigger{position:absolute;left:0;top:0;bottom:0;width:24px;z-index:20}
+  /* [FIX #2] nav panel 280px -> 320px per spec */
+  .nav-panel{position:absolute;left:14px;top:14px;bottom:14px;width:320px;background:var(--nav-bg);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:20px;border:1px solid var(--nav-border);padding:18px 14px;z-index:25;opacity:0;transform:translateX(-10px);pointer-events:none;transition:opacity .12s,transform .12s;display:flex;flex-direction:column;overflow-y:auto}
+  .nav-trigger:hover+.nav-panel,.nav-panel:hover,.nav-panel.vis{opacity:1;transform:translateX(0);pointer-events:auto}
+  .nav-search{display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--hover-bg);border-radius:10px;margin-bottom:6px}
+  .nav-search input{background:0;border:0;outline:0;color:var(--text-primary);font-size:13px;font-family:inherit;width:100%}
+  .nav-search input::placeholder{color:var(--text-tertiary)}
+  .nv{display:flex;align-items:center;gap:9px;padding:7px 10px;font-size:14px;color:var(--text-secondary);border-radius:10px;cursor:pointer;transition:background .12s,color .12s}
+  .nv:hover{background:var(--hover-bg);color:var(--text-primary)}
+  .nv:hover svg{stroke:var(--text-primary)}
+  .nv.on{background:var(--active-bg);color:var(--accent-text)}
+  .nv.on svg{stroke:var(--icon-active)}
+  .nv svg{width:16px;height:16px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke .12s}
+  .nv.hidden{display:none}
+  .nav-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);padding:14px 10px 6px}
+  .nav-bottom{margin-top:auto;padding-top:10px;border-top:1px solid var(--border)}
+
+  /* ── TOC panel ── */
+  .toc-trigger{position:absolute;right:0;top:0;bottom:0;width:24px;z-index:20}
+  .toc-panel{position:absolute;right:14px;top:14px;bottom:14px;width:220px;background:var(--nav-bg);backdrop-filter:blur(30px);-webkit-backdrop-filter:blur(30px);border-radius:20px;border:1px solid var(--nav-border);padding:18px 14px;z-index:25;opacity:0;transform:translateX(10px);pointer-events:none;transition:opacity .12s,transform .12s}
+  .toc-trigger:hover+.toc-panel,.toc-panel:hover,.toc-panel.vis{opacity:1;transform:translateX(0);pointer-events:auto}
+  .toc-title{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);padding:0 6px 10px}
+  .ti{padding:5px 6px;font-size:13px;color:var(--text-tertiary);cursor:pointer;border-radius:6px;transition:color .12s,background .12s;line-height:1.4}
+  .ti:hover{color:var(--text-primary);background:var(--hover-bg)}
+  .ti.on{color:var(--accent-text)}
+  .ti.sub{padding-left:22px;font-size:12px}
+
+  /* edge indicators */
+  .edge{position:absolute;top:50%;transform:translateY(-50%);width:3px;height:36px;border-radius:2px;background:var(--text-tertiary);opacity:0;transition:opacity .3s;z-index:15}
+  .edge.l{left:4px}.edge.r{right:4px}
+  .content:hover .edge{opacity:.12}
+  .nav-trigger:hover~.edge.l,.toc-trigger:hover~.edge.r{opacity:0}
+
+  /* ── Command Palette ── */
+  .pal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:100;display:none;align-items:flex-start;justify-content:center;padding-top:18vh}
+  .pal-overlay.vis{display:flex}
+  .pal{width:520px;background:var(--surface-solid);border:1px solid var(--border);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.4);overflow:hidden}
+  .pal-input{padding:14px 18px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px}
+  .pal-input svg{width:18px;height:18px;stroke:var(--text-tertiary);stroke-width:1.5;stroke-linecap:round;fill:none;flex-shrink:0}
+  .pal-input input{background:0;border:0;outline:0;color:var(--text-primary);font-size:15px;font-family:inherit;width:100%}
+  .pal-input input::placeholder{color:var(--text-tertiary)}
+  .pal-kbd{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-ghost);padding:2px 7px;background:var(--hover-bg);border:1px solid var(--border);border-radius:5px;white-space:nowrap}
+  .pal-tabs{display:flex;padding:0 12px;border-bottom:1px solid var(--border)}
+  .pal-tab{padding:9px 13px;font-size:12px;color:var(--text-tertiary);cursor:pointer;border-bottom:2px solid transparent;transition:color .12s,border-color .12s;background:0;border-top:0;border-left:0;border-right:0;font-family:inherit}
+  .pal-tab:hover{color:var(--text-secondary)}
+  .pal-tab.on{color:var(--accent-text);border-bottom-color:var(--accent-solid)}
+  .pal-results{padding:6px;max-height:280px;overflow-y:auto}
+  .pr{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:10px;cursor:pointer;transition:background .1s}
+  .pr:hover,.pr.sel{background:var(--hover-bg)}
+  .pr svg{width:16px;height:16px;stroke:var(--text-tertiary);stroke-width:1.5;stroke-linecap:round;fill:none;flex-shrink:0}
+  .pr .pr-info{flex:1}
+  .pr .pr-t{font-size:14px;color:var(--text-primary)}
+  .pr .pr-p{font-size:11px;color:var(--text-tertiary);margin-top:1px}
+  .pr .pr-k{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-ghost);padding:2px 6px;background:var(--hover-bg);border-radius:4px}
+  .pal-footer{padding:8px 16px;border-top:1px solid var(--border);display:flex;gap:14px;font-size:11px;color:var(--text-ghost)}
+  .pal-footer kbd{font-family:'JetBrains Mono',monospace;padding:1px 4px;background:var(--hover-bg);border:1px solid var(--border);border-radius:3px;font-size:10px;color:var(--text-tertiary)}
+
+  /* ── Context Menu ── */
+  /* [FIX #6] ARIA role support for context menu */
+  .ctx{position:fixed;background:var(--surface-elevated);backdrop-filter:blur(40px);border:1px solid var(--border);border-radius:14px;padding:5px;min-width:240px;box-shadow:0 12px 40px rgba(0,0,0,.3),0 4px 12px rgba(0,0,0,.15);z-index:200;display:none}
+  .ctx.vis{display:block}
+  .cx{display:flex;align-items:center;gap:9px;padding:7px 11px;border-radius:8px;cursor:pointer;transition:background .1s;font-size:13px;color:var(--text-secondary);border:none;background:0;width:100%;text-align:left;font-family:inherit}
+  .cx:hover,.cx.focused{background:var(--hover-bg);color:var(--text-primary)}
+  .cx:hover svg,.cx.focused svg{stroke:var(--text-primary)}
+  .cx svg{width:15px;height:15px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0;transition:stroke .12s}
+  .cx .cl{flex:1}
+  .cx .ck{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-ghost)}
+  .ctx-sep{height:1px;background:var(--border);margin:3px 8px}
+  .hl-dots{display:flex;gap:4px;margin-left:auto}
+  .hl-dot{width:12px;height:12px;border-radius:50%;cursor:pointer;border:1.5px solid transparent;transition:transform .12s}
+  .hl-dot:hover{transform:scale(1.25)}
+  .hl-dot.y{background:var(--hl-yellow);border-color:rgba(250,204,21,.4)}
+  .hl-dot.g{background:var(--hl-green);border-color:rgba(74,222,128,.3)}
+  .hl-dot.b{background:var(--hl-blue);border-color:rgba(96,165,250,.3)}
+  .hl-dot.p{background:var(--hl-pink);border-color:rgba(244,114,182,.3)}
+
+  /* ── Quick Actions bar ── */
+  .qa{position:fixed;display:none;align-items:center;gap:2px;background:var(--surface-elevated);backdrop-filter:blur(40px);border:1px solid var(--border);border-radius:12px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,.25);z-index:150}
+  .qa.vis{display:flex}
+  .qb{display:flex;align-items:center;justify-content:center;width:34px;height:30px;border:none;background:0;cursor:pointer;border-radius:8px;transition:background .1s}
+  .qb:hover{background:var(--hover-bg)}
+  .qb svg{width:15px;height:15px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke .12s}
+  .qb:hover svg{stroke:var(--text-primary)}
+  .qa-div{width:1px;height:16px;background:var(--border);margin:0 2px}
+
+  /* ── Bottom controls bar ── */
+  /* [FIX #7] proximity zone at bottom edge, not full content hover */
+  .bottom-trigger{position:absolute;bottom:0;left:0;right:0;height:24px;z-index:29}
+  .controls{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);display:flex;align-items:center;gap:3px;background:var(--surface-elevated);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:28px;padding:5px 6px;z-index:30;opacity:0;transition:opacity .25s;pointer-events:none}
+  .bottom-trigger:hover~.controls,.controls:hover{opacity:1;pointer-events:auto}
+  .reader.focus .controls{opacity:1;pointer-events:auto}
+  .cb{width:34px;height:34px;display:flex;align-items:center;justify-content:center;border:none;background:0;cursor:pointer;border-radius:50%;transition:background .12s}
+  .cb:hover{background:var(--hover-bg)}
+  .cb.on{background:var(--active-bg)}
+  .cb svg{width:17px;height:17px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;transition:stroke .12s}
+  .cb:hover svg{stroke:var(--text-primary)}
+  .cb.on svg{stroke:var(--icon-active)}
+  .cb-div{width:1px;height:18px;background:var(--border);margin:0 2px}
+  .cb-val{font-size:11px;font-family:'JetBrains Mono',monospace;color:var(--text-secondary);min-width:36px;text-align:center;cursor:default}
+
+  /* ── Settings panel ── */
+  .settings{position:absolute;bottom:60px;left:50%;transform:translateX(-50%);background:var(--surface-elevated);backdrop-filter:blur(40px);border:1px solid var(--border);border-radius:18px;padding:20px;width:360px;z-index:35;display:none;box-shadow:0 12px 40px rgba(0,0,0,.3)}
+  .settings.vis{display:block}
+  .sp-title{font-size:13px;font-weight:600;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+  .sp-title svg{width:16px;height:16px;stroke:var(--icon-stroke);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none}
+  .sr{display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:1px solid var(--border)}
+  .sr:last-child{border-bottom:0}
+  .sr-label{font-size:13px;color:var(--text-secondary);display:flex;align-items:center;gap:7px}
+  .sr-label svg{width:15px;height:15px;stroke:var(--text-tertiary);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none}
+  .sr-val{font-size:13px;color:var(--text-primary);display:flex;align-items:center;gap:4px}
+  .sr-chev{font-size:12px;color:var(--text-ghost)}
+  .theme-sel{display:flex;gap:4px;background:var(--hover-bg);border-radius:9px;padding:3px}
+  .th-opt{padding:5px 12px;font-size:12px;color:var(--text-tertiary);border-radius:7px;cursor:pointer;border:none;background:0;font-family:inherit;transition:background .12s,color .12s}
+  .th-opt:hover{color:var(--text-secondary)}
+  .th-opt.on{background:var(--surface-solid);color:var(--text-primary);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  .radius-sel{display:flex;gap:3px;background:var(--hover-bg);border-radius:9px;padding:3px}
+  .rad-opt{padding:4px 8px;font-size:11px;color:var(--text-tertiary);border-radius:6px;cursor:pointer;border:none;background:0;font-family:'JetBrains Mono',monospace;transition:background .12s,color .12s}
+  .rad-opt:hover{color:var(--text-secondary)}
+  .rad-opt.on{background:var(--surface-solid);color:var(--text-primary);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+  .bg-sel{display:flex;gap:3px;background:var(--hover-bg);border-radius:9px;padding:3px}
+  .bg-opt{padding:4px 8px;font-size:11px;color:var(--text-tertiary);border-radius:6px;cursor:pointer;border:none;background:0;font-family:inherit;transition:background .12s,color .12s}
+  .bg-opt:hover{color:var(--text-secondary)}
+  .bg-opt.on{background:var(--surface-solid);color:var(--text-primary);box-shadow:0 1px 4px rgba(0,0,0,.15)}
+
+  /* width slider & opacity slider */
+  .w-slider,.o-slider{width:80px;height:4px;-webkit-appearance:none;appearance:none;background:var(--border);border-radius:2px;outline:0;cursor:pointer}
+  .w-slider::-webkit-slider-thumb,.o-slider::-webkit-slider-thumb{-webkit-appearance:none;width:14px;height:14px;background:var(--accent-solid);border-radius:50%;cursor:pointer;box-shadow:0 1px 6px rgba(0,0,0,.3)}
+  .w-slider::-moz-range-thumb,.o-slider::-moz-range-thumb{width:14px;height:14px;background:var(--accent-solid);border-radius:50%;cursor:pointer;border:0;box-shadow:0 1px 6px rgba(0,0,0,.3)}
+
+  /* ── Toasts ── */
+  .toast-container{position:fixed;bottom:28px;right:28px;z-index:300;display:flex;flex-direction:column;gap:8px;pointer-events:none}
+  .toast{display:flex;align-items:center;gap:9px;padding:10px 14px;background:var(--surface-elevated);backdrop-filter:blur(30px);border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 20px rgba(0,0,0,.2);font-size:13px;color:var(--text-secondary);opacity:0;transform:translateY(10px);transition:opacity .2s,transform .2s;pointer-events:auto}
+  .toast.vis{opacity:1;transform:translateY(0)}
+  .toast svg{width:16px;height:16px;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+  .toast.ok svg{stroke:var(--success)}
+  .toast.info svg{stroke:var(--accent-solid)}
+
+  /* ── Contrast warning ── */
+  .contrast-warn{position:absolute;top:16px;right:28px;display:none;align-items:center;gap:8px;padding:8px 12px;background:var(--warning-dim);border:1px solid rgba(245,158,11,.2);border-radius:10px;font-size:12px;color:var(--warning);z-index:30}
+  .contrast-warn.vis{display:flex}
+  .contrast-warn svg{width:14px;height:14px;stroke:var(--warning);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;fill:none;flex-shrink:0}
+
+  /* ── Keyboard hints ── */
+  .hints{position:fixed;bottom:28px;left:28px;z-index:50;display:flex;flex-direction:column;gap:5px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .hints.vis{opacity:1}
+  .hint{font-size:11px;color:var(--text-tertiary);display:flex;align-items:center;gap:7px}
+  .hint kbd{font-family:'JetBrains Mono',monospace;font-size:10px;padding:2px 5px;background:var(--hover-bg);border:1px solid var(--border);border-radius:4px;color:var(--text-secondary)}
+
+  /* ── Focus indicator ── */
+  .focus-msg{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);z-index:50;font-size:12px;color:var(--text-tertiary);background:var(--surface);backdrop-filter:blur(20px);border:1px solid var(--border);border-radius:20px;padding:6px 16px;opacity:0;transition:opacity .2s;pointer-events:none}
+  .focus-msg.vis{opacity:1}
+
+  /* highlighted text */
+  .hl-y{background:var(--hl-yellow);border-radius:3px;padding:1px 0}
+  .hl-g{background:var(--hl-green);border-radius:3px;padding:1px 0}
+  .hl-b{background:var(--hl-blue);border-radius:3px;padding:1px 0}
+  .hl-p{background:var(--hl-pink);border-radius:3px;padding:1px 0}
+
+  /* selection color */
+  ::selection{background:var(--accent-dim);color:var(--text-primary)}
+
+  /* ── Screen reader only ── */
+  /* [FIX #3 & #6] ARIA live region for announcements */
+  .sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);border:0}
+</style>
+</head>
+<body>
+
+<!-- [FIX #3] ARIA live region for screen reader announcements -->
+<div id="srAnnounce" class="sr-only" aria-live="polite" aria-atomic="true" role="status"></div>
+
+<div class="background" aria-hidden="true">
+  <div class="bg-sky"></div>
+  <div class="bg-mountains"><div class="mountain m1"></div><div class="mountain m2"></div><div class="mountain m3"></div></div>
+  <div class="bg-fog"></div>
+  <div class="bg-stars" id="stars"></div>
+</div>
+
+<!-- [FIX #10] reader surface size via JS variable for configurability (60-95% range) -->
+<div class="reader" id="reader" style="width:82vw;height:90vh" role="application" aria-label="ais document reader">
+  <div class="stream-border" id="streamBorder" aria-hidden="true"></div>
+
+  <!-- Titlebar -->
+  <header class="titlebar" role="banner">
+    <div class="tb-left">
+      <button class="logo" id="logo" aria-label="ais — toggle streaming indicator" tabindex="0">ais</button>
+      <nav class="breadcrumb" aria-label="Document path">
+        <span>&#8249;</span><span>architecture</span><span class="sep">/</span><span>system-design.md</span>
+      </nav>
+    </div>
+    <div class="tb-right">
+      <button class="wb" title="Minimize" aria-label="Minimize window"><svg viewBox="0 0 14 14"><line x1="2" y1="7" x2="12" y2="7"/></svg></button>
+      <button class="wb" title="Maximize" aria-label="Maximize window"><svg viewBox="0 0 14 14"><rect x="2" y="2" width="10" height="10" rx="1.5"/></svg></button>
+      <button class="wb cl" title="Close" aria-label="Close window"><svg viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg></button>
+    </div>
+  </header>
+
+  <!-- [FIX #8] Tabs — tabbar has role=tablist, conditional single-tab hide -->
+  <div class="tabbar" id="tabbar" role="tablist" aria-label="Open documents">
+    <div class="tab on" data-tab="0" role="tab" aria-selected="true" tabindex="0">system-design.md <span class="tc" role="button" aria-label="Close tab" tabindex="0"><svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></span></div>
+    <div class="tab" data-tab="1" role="tab" aria-selected="false" tabindex="-1">runbook.md</div>
+    <div class="tab" data-tab="2" role="tab" aria-selected="false" tabindex="-1">api-reference.md <span class="tc" role="button" aria-label="Close tab" tabindex="0"><svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg></span></div>
+  </div>
+
+  <!-- Content -->
+  <div class="content" id="contentArea">
+    <div class="nav-trigger" id="navTrigger" aria-hidden="true"></div>
+
+    <!-- [FIX #3] Nav panel — ARIA landmark -->
+    <nav class="nav-panel" id="navPanel" aria-label="Document navigation">
+      <div class="nav-search">
+        <span class="i"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg></span>
+        <input type="text" placeholder="Search documents..." id="navSearchInput" aria-label="Search documents"/>
+      </div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="Library"><svg viewBox="0 0 20 20"><path d="M3 5a1 1 0 011-1h3.586a1 1 0 01.707.293L9.586 5.586A1 1 0 0010.293 6H16a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V5z"/></svg>Library</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="Favorites"><svg viewBox="0 0 20 20"><path d="M10 2l2.5 5 5.5.8-4 3.9 1 5.3L10 14.5 4.9 17l1-5.3-4-3.9L7.5 7z"/></svg>Favorites</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="Recent"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><polyline points="10,6 10,10 13,12"/></svg>Recent</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="All Documents"><svg viewBox="0 0 20 20"><path d="M6 2h6l4 4v12a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M12 2v4h4"/></svg>All Documents</div>
+      <div class="nav-label">Spaces</div>
+      <div class="nv on" role="button" tabindex="0" data-nav-name="architecture"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" opacity=".4"/></svg>architecture</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="operations"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" opacity=".4"/></svg>operations</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="product"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" opacity=".4"/></svg>product</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="research"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" opacity=".4"/></svg>research</div>
+      <div class="nv" role="button" tabindex="0" data-nav-name="personal"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" opacity=".4"/></svg>personal</div>
+      <div class="nav-bottom">
+        <div class="nv" id="openSettings" role="button" tabindex="0"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg>Settings</div>
+      </div>
+    </nav>
+
+    <!-- [FIX #3] Document — semantic HTML with <main>, <section>, <header> -->
+    <main class="doc" id="docScroll" role="main" aria-label="Document content">
+      <article class="doc-inner" id="docInner" style="width:720px">
+        <header>
+          <h1>System Design</h1>
+          <p class="doc-sub">High level architecture and key decisions</p>
+        </header>
+        <hr class="doc-hr"/>
+        <p>This document describes the high level architecture of our platform, the major components, and the core design decisions.</p>
+
+        <!-- [FEATURE] sections with heading collapse -->
+        <section>
+          <h2 data-section="overview" aria-expanded="true">
+            <svg class="h-chev" viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+            1. Overview
+          </h2>
+          <div class="doc-section" style="max-height:2000px">
+            <p>The platform is built as a set of <span class="hl-y">loosely coupled services</span> that communicate through well defined interfaces.</p>
+            <div class="arch">
+              <svg viewBox="0 0 580 220">
+                <rect x="10" y="60" width="80" height="36"/><text x="50" y="83" text-anchor="middle">Web</text>
+                <rect x="10" y="120" width="80" height="36"/><text x="50" y="143" text-anchor="middle">Mobile</text>
+                <rect x="160" y="90" width="100" height="36"/><text x="210" y="113" text-anchor="middle">API Gateway</text>
+                <line x1="90" y1="78" x2="160" y2="105"/><line x1="90" y1="138" x2="160" y2="112"/>
+                <rect x="330" y="20" width="100" height="36"/><text x="380" y="43" text-anchor="middle">Auth Service</text>
+                <rect x="330" y="75" width="100" height="36"/><text x="380" y="98" text-anchor="middle">User Service</text>
+                <rect x="330" y="130" width="100" height="36"/><text x="380" y="153" text-anchor="middle">Billing Service</text>
+                <rect x="330" y="175" width="100" height="36"/><text x="380" y="198" text-anchor="middle">Event Bus</text>
+                <line x1="260" y1="105" x2="330" y2="38"/><line x1="260" y1="108" x2="330" y2="93"/>
+                <line x1="260" y1="111" x2="330" y2="148"/><line x1="260" y1="114" x2="330" y2="193"/>
+                <rect x="490" y="80" width="80" height="60" rx="20"/><text x="530" y="115" text-anchor="middle">Database</text>
+                <line x1="430" y1="93" x2="490" y2="105" stroke-dasharray="4,4"/><line x1="430" y1="148" x2="490" y2="115" stroke-dasharray="4,4"/>
+              </svg>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <h2 data-section="principles" aria-expanded="true">
+            <svg class="h-chev" viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+            2. Principles
+          </h2>
+          <div class="doc-section" style="max-height:2000px">
+            <ul>
+              <li>Design for scalability</li>
+              <li>Build for failure</li>
+              <li>Automate everything</li>
+              <li>Measure what matters</li>
+            </ul>
+          </div>
+        </section>
+
+        <section>
+          <h2 data-section="arch" aria-expanded="true">
+            <svg class="h-chev" viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+            3. Architecture
+          </h2>
+          <div class="doc-section" style="max-height:5000px">
+            <p>The system follows a <span class="hl-b">microservices architecture</span> with clear bounded contexts. Each service owns its data and communicates through async events.</p>
+
+            <h3>3.1 Frontend</h3>
+            <p>The frontend is a single page application built with modern tooling. It communicates with the backend exclusively through the API Gateway.</p>
+
+            <div class="cblock">
+              <div class="cblock-head"><span class="cblock-lang">typescript</span><button class="cblock-copy" title="Copy code" aria-label="Copy code to clipboard"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg></button></div>
+              <div class="cblock-body"><span class="kw">interface</span> <span class="ty">ApiClient</span> {
+  <span class="fn">get</span>&lt;<span class="ty">T</span>&gt;(path: <span class="ty">string</span>): <span class="ty">Promise</span>&lt;<span class="ty">T</span>&gt;;
+  <span class="fn">post</span>&lt;<span class="ty">T</span>&gt;(path: <span class="ty">string</span>, body: <span class="ty">unknown</span>): <span class="ty">Promise</span>&lt;<span class="ty">T</span>&gt;;
+}
+
+<span class="kw">const</span> client = <span class="fn">createApiClient</span>({
+  baseUrl: <span class="str">'https://api.platform.io'</span>,
+  timeout: <span class="num">5000</span>,
+  retries: <span class="num">3</span>,
+});</div>
+            </div>
+
+            <h3>3.2 Backend</h3>
+            <p>Each backend service is a standalone Go application with its own database and event handlers.</p>
+
+            <div class="cblock" id="foldBlock">
+              <div class="cblock-head"><span class="cblock-lang">go</span><button class="cblock-copy" title="Copy code" aria-label="Copy code to clipboard"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg></button></div>
+              <div class="cblock-body" id="foldTop"><span class="kw">type</span> <span class="ty">Service</span> <span class="kw">struct</span> {
+    db     *<span class="ty">sql.DB</span>
+    events <span class="ty">EventBus</span>
+    logger *<span class="ty">slog.Logger</span>
+    config *<span class="ty">Config</span>
+}</div>
+              <button class="cblock-fold" id="foldBtn" aria-expanded="false" aria-label="Toggle code block expansion">
+                <svg viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+                <span id="foldLabel">32 more lines</span>
+              </button>
+              <div class="cblock-body cblock-hidden" id="foldMid">
+<span class="kw">func</span> <span class="fn">NewService</span>(db *<span class="ty">sql.DB</span>, bus <span class="ty">EventBus</span>) *<span class="ty">Service</span> {
+    <span class="kw">return</span> &<span class="ty">Service</span>{
+        db:     db,
+        events: bus,
+        logger: <span class="fn">slog.Default</span>(),
+        config: <span class="fn">LoadConfig</span>(),
+    }
+}
+
+<span class="kw">func</span> (s *<span class="ty">Service</span>) <span class="fn">HandleRequest</span>(ctx <span class="ty">context.Context</span>, req *<span class="ty">Request</span>) (*<span class="ty">Response</span>, <span class="ty">error</span>) {
+    span := <span class="fn">trace.Start</span>(ctx, <span class="str">"HandleRequest"</span>)
+    <span class="kw">defer</span> span.<span class="fn">End</span>()
+
+    <span class="kw">if</span> err := s.<span class="fn">validate</span>(req); err != <span class="kw">nil</span> {
+        <span class="kw">return</span> <span class="kw">nil</span>, <span class="fn">fmt.Errorf</span>(<span class="str">"validation: %w"</span>, err)
+    }
+
+    result, err := s.<span class="fn">process</span>(ctx, req)
+    <span class="kw">if</span> err != <span class="kw">nil</span> {
+        s.logger.<span class="fn">Error</span>(<span class="str">"process failed"</span>, <span class="str">"error"</span>, err)
+        <span class="kw">return</span> <span class="kw">nil</span>, err
+    }
+
+    s.events.<span class="fn">Publish</span>(<span class="str">"request.completed"</span>, result)
+
+    <span class="kw">return</span> result, <span class="kw">nil</span>
+}
+
+<span class="kw">func</span> (s *<span class="ty">Service</span>) <span class="fn">validate</span>(req *<span class="ty">Request</span>) <span class="ty">error</span> {
+    <span class="kw">if</span> req.ID == <span class="str">""</span> {
+        <span class="kw">return</span> <span class="fn">errors.New</span>(<span class="str">"id required"</span>)
+    }
+    <span class="kw">return</span> <span class="kw">nil</span>
+}</div>
+              <div class="cblock-body">    <span class="kw">return</span> response, <span class="kw">nil</span>
+}</div>
+            </div>
+
+            <h3>3.3 Data Layer</h3>
+            <p>Each service owns its data store. We use PostgreSQL for relational data, Redis for caching, and S3 for object storage.</p>
+
+            <h3>3.4 Integrations</h3>
+            <p>External integrations are isolated behind <span class="hl-g">adapter interfaces</span>. This allows swapping providers without changing business logic.</p>
+          </div>
+        </section>
+
+        <section>
+          <h2 data-section="security" aria-expanded="true">
+            <svg class="h-chev" viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+            4. Security
+          </h2>
+          <div class="doc-section" style="max-height:2000px">
+            <p>All inter-service communication uses mTLS. External traffic terminates at the API Gateway with JWT validation. Secrets are managed through a dedicated vault service with automatic rotation.</p>
+          </div>
+        </section>
+
+        <section>
+          <h2 data-section="obs" aria-expanded="true">
+            <svg class="h-chev" viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+            5. Observability
+          </h2>
+          <div class="doc-section" style="max-height:2000px">
+            <p>Every service exports structured logs, metrics, and distributed traces. We use OpenTelemetry as the standard instrumentation layer with Prometheus for metrics collection and Grafana for visualization.</p>
+          </div>
+        </section>
+
+        <section>
+          <h2 data-section="roadmap" aria-expanded="true">
+            <svg class="h-chev" viewBox="0 0 14 14"><polyline points="4,5 7,8 10,5"/></svg>
+            6. Roadmap
+          </h2>
+          <div class="doc-section" style="max-height:2000px">
+            <ul>
+              <li>Event sourcing for audit trail</li>
+              <li>GraphQL federation layer</li>
+              <li>Multi-region deployment</li>
+              <li>Edge caching strategy</li>
+            </ul>
+          </div>
+        </section>
+      </article>
+    </main>
+
+    <!-- TOC trigger & panel -->
+    <div class="toc-trigger" id="tocTrigger" aria-hidden="true"></div>
+    <aside class="toc-panel" id="tocPanel" aria-label="Table of contents, 6 headings" role="navigation">
+      <div class="toc-title">Outline</div>
+      <div class="ti on" data-s="overview" role="link" tabindex="0">1. Overview</div>
+      <div class="ti" data-s="principles" role="link" tabindex="0">2. Principles</div>
+      <div class="ti" data-s="arch" role="link" tabindex="0">3. Architecture</div>
+      <div class="ti sub" data-s="arch" role="link" tabindex="0">3.1 Frontend</div>
+      <div class="ti sub" data-s="arch" role="link" tabindex="0">3.2 Backend</div>
+      <div class="ti sub" data-s="arch" role="link" tabindex="0">3.3 Data Layer</div>
+      <div class="ti sub" data-s="arch" role="link" tabindex="0">3.4 Integrations</div>
+      <div class="ti" data-s="security" role="link" tabindex="0">4. Security</div>
+      <div class="ti" data-s="obs" role="link" tabindex="0">5. Observability</div>
+      <div class="ti" data-s="roadmap" role="link" tabindex="0">6. Roadmap</div>
+    </aside>
+
+    <!-- Edge indicators -->
+    <div class="edge l" aria-hidden="true"></div>
+    <div class="edge r" aria-hidden="true"></div>
+
+    <!-- Read time -->
+    <span class="read-time" aria-label="Estimated reading time">5 min read</span>
+
+    <!-- Contrast warning -->
+    <div class="contrast-warn" id="contrastWarn" role="alert">
+      <svg viewBox="0 0 20 20"><path d="M10 3l7.5 13H2.5z"/><line x1="10" y1="9" x2="10" y2="12"/><circle cx="10" cy="14" r=".5" fill="var(--warning)" stroke="none"/></svg>
+      Low contrast — readability may be reduced
+    </div>
+
+    <!-- [FIX #7] bottom edge proximity trigger -->
+    <div class="bottom-trigger" aria-hidden="true"></div>
+
+    <!-- Bottom controls bar -->
+    <div class="controls" id="controlsBar" role="toolbar" aria-label="Document controls">
+      <button class="cb" title="Zoom out (Ctrl -)" aria-label="Zoom out" onclick="changeZoom(-10)">
+        <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/></svg>
+      </button>
+      <span class="cb-val" id="zoomVal" aria-label="Current zoom level">100%</span>
+      <button class="cb" title="Zoom in (Ctrl +)" aria-label="Zoom in" onclick="changeZoom(10)">
+        <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg>
+      </button>
+      <div class="cb-div" aria-hidden="true"></div>
+      <button class="cb" title="Narrow" aria-label="Decrease reading width" onclick="changeWidth(-40)">
+        <svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="5,8.5 7,10 5,11.5"/><polyline points="15,8.5 13,10 15,11.5"/></svg>
+      </button>
+      <span class="cb-val" id="widthVal" aria-label="Current reading width">720</span>
+      <button class="cb" title="Wider" aria-label="Increase reading width" onclick="changeWidth(40)">
+        <svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="5,8.5 3,10 5,11.5"/><polyline points="15,8.5 17,10 15,11.5"/></svg>
+      </button>
+      <div class="cb-div" aria-hidden="true"></div>
+      <button class="cb" title="Focus mode (F11)" id="focusBtn" aria-label="Toggle focus mode" aria-pressed="false" onclick="toggleFocus()">
+        <svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg>
+      </button>
+      <button class="cb" title="Toggle theme" aria-label="Toggle light/dark theme" onclick="toggleTheme()">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity=".15"/></svg>
+      </button>
+      <button class="cb" title="Settings" id="settingsBtn" aria-label="Open settings panel" aria-expanded="false" onclick="toggleSettings()">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg>
+      </button>
+    </div>
+
+    <!-- Settings panel — expanded with window radius, background, opacity slider, transparency keys -->
+    <div class="settings" id="settingsPanel" role="dialog" aria-label="Appearance settings">
+      <div class="sp-title"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg>Appearance</div>
+      <div class="sr">
+        <span class="sr-label"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity=".15"/></svg>Theme</span>
+        <div class="theme-sel" role="radiogroup" aria-label="Theme selection">
+          <button class="th-opt" role="radio" aria-checked="false" onclick="setTheme('light',this)">Light</button>
+          <button class="th-opt on" role="radio" aria-checked="true" onclick="setTheme('dark',this)">Dark</button>
+          <button class="th-opt" role="radio" aria-checked="false" onclick="setTheme('system',this)">System</button>
+        </div>
+      </div>
+      <div class="sr">
+        <span class="sr-label"><svg viewBox="0 0 20 20"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>Font Size</span>
+        <span class="sr-val"><span id="fontVal">16px</span> <span class="sr-chev">›</span></span>
+      </div>
+      <div class="sr">
+        <span class="sr-label"><svg viewBox="0 0 20 20"><rect x="3" y="5" width="14" height="10" rx="1"/><line x1="7" y1="5" x2="7" y2="15" opacity=".3"/><line x1="13" y1="5" x2="13" y2="15" opacity=".3"/></svg>Reading Width</span>
+        <input type="range" class="w-slider" min="600" max="1000" value="720" id="wSlider" aria-label="Reading width" oninput="setWidth(this.value)"/>
+      </div>
+      <!-- [FEATURE] opacity slider with keyboard shortcuts -->
+      <div class="sr">
+        <span class="sr-label"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4" opacity=".3"/></svg>Opacity</span>
+        <div style="display:flex;align-items:center;gap:6px">
+          <input type="range" class="o-slider" min="40" max="100" value="75" id="oSlider" aria-label="Surface opacity" oninput="setOpacity(this.value)"/>
+          <span class="cb-val" id="opVal" style="min-width:32px">75%</span>
+        </div>
+      </div>
+      <!-- [FEATURE] window radius options per spec -->
+      <div class="sr">
+        <span class="sr-label"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="4"/></svg>Window Radius</span>
+        <div class="radius-sel" role="radiogroup" aria-label="Window corner radius">
+          <button class="rad-opt" role="radio" aria-checked="false" onclick="setRadius(20,this)">20</button>
+          <button class="rad-opt on" role="radio" aria-checked="true" onclick="setRadius(28,this)">28</button>
+          <button class="rad-opt" role="radio" aria-checked="false" onclick="setRadius(36,this)">36</button>
+          <button class="rad-opt" role="radio" aria-checked="false" onclick="setRadius(48,this)">48</button>
+        </div>
+      </div>
+      <!-- [FEATURE] background modes per spec -->
+      <div class="sr">
+        <span class="sr-label"><svg viewBox="0 0 20 20"><path d="M2 14l4-5 3 3 4-6 5 8"/><rect x="2" y="2" width="16" height="16" rx="2"/></svg>Background</span>
+        <div class="bg-sel" role="radiogroup" aria-label="Background mode">
+          <button class="bg-opt on" role="radio" aria-checked="true" onclick="setBg('gradient',this)">Gradient</button>
+          <button class="bg-opt" role="radio" aria-checked="false" onclick="setBg('solid',this)">Solid</button>
+          <button class="bg-opt" role="radio" aria-checked="false" onclick="setBg('frost',this)">Frost</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Command Palette -->
+<div class="pal-overlay" id="palette" role="dialog" aria-label="Command palette" aria-modal="true">
+  <div class="pal">
+    <div class="pal-input">
+      <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg>
+      <input type="text" placeholder="Search commands, documents, or headings..." id="palInput" aria-label="Search commands" autocomplete="off"/>
+      <span class="pal-kbd">esc</span>
+    </div>
+    <div class="pal-tabs" role="tablist">
+      <button class="pal-tab on" role="tab" aria-selected="true">All</button>
+      <button class="pal-tab" role="tab" aria-selected="false">Documents</button>
+      <button class="pal-tab" role="tab" aria-selected="false">Headings</button>
+      <button class="pal-tab" role="tab" aria-selected="false">Commands</button>
+    </div>
+    <div class="pal-results" role="listbox" aria-label="Search results">
+      <div class="pr sel" role="option" aria-selected="true" tabindex="0">
+        <svg viewBox="0 0 20 20"><path d="M6 2h6l4 4v12a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M12 2v4h4"/></svg>
+        <div class="pr-info"><div class="pr-t">Go to Document...</div></div>
+        <span class="pr-k">Ctrl O</span>
+      </div>
+      <div class="pr" role="option" tabindex="-1">
+        <svg viewBox="0 0 20 20"><line x1="4" y1="5" x2="16" y2="5"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="13" x2="16" y2="13"/></svg>
+        <div class="pr-info"><div class="pr-t">Go to Heading...</div></div>
+        <span class="pr-k">Ctrl L</span>
+      </div>
+      <div class="pr" role="option" tabindex="-1">
+        <svg viewBox="0 0 20 20"><line x1="4" y1="5" x2="16" y2="5"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="13" x2="16" y2="13"/><line x1="4" y1="17" x2="16" y2="17"/></svg>
+        <div class="pr-info"><div class="pr-t">Toggle Outline</div></div>
+        <span class="pr-k">Ctrl Shift O</span>
+      </div>
+      <div class="pr" role="option" tabindex="-1">
+        <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="currentColor" opacity=".15"/></svg>
+        <div class="pr-info"><div class="pr-t">Change Theme</div></div>
+      </div>
+      <div class="pr" role="option" tabindex="-1">
+        <svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/></svg>
+        <div class="pr-info"><div class="pr-t">AI Actions</div></div>
+      </div>
+    </div>
+    <div class="pal-footer">
+      <span><kbd>↑↓</kbd> navigate</span><span><kbd>↵</kbd> open</span><span><kbd>esc</kbd> close</span>
+    </div>
+  </div>
+</div>
+
+<!-- [FIX #6] Context Menu with role="menu" and keyboard navigation -->
+<div class="ctx" id="ctxMenu" role="menu" aria-label="Context menu">
+  <button class="cx" role="menuitem" tabindex="0"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg><span class="cl">Copy</span><span class="ck">Ctrl C</span></button>
+  <button class="cx" role="menuitem" tabindex="-1"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/><line x1="9" y1="10" x2="13" y2="10"/><line x1="9" y1="13" x2="13" y2="13"/></svg><span class="cl">Copy as Markdown</span><span class="ck">Ctrl Shift C</span></button>
+  <div class="ctx-sep" role="separator"></div>
+  <button class="cx" role="menuitem" tabindex="-1" id="ctxHighlight"><svg viewBox="0 0 20 20"><path d="M13.5 3.5l3 3-8 8H5.5v-3z"/><path d="M11 6l3 3"/><path d="M4 17h12"/></svg><span class="cl">Highlight</span><div class="hl-dots"><span class="hl-dot y" data-color="yellow"></span><span class="hl-dot g" data-color="green"></span><span class="hl-dot b" data-color="blue"></span><span class="hl-dot p" data-color="pink"></span></div></button>
+  <button class="cx" role="menuitem" tabindex="-1"><svg viewBox="0 0 20 20"><path d="M5 3h10a1 1 0 011 1v14l-5-3-5 3V4a1 1 0 011-1z"/></svg><span class="cl">Bookmark</span></button>
+  <div class="ctx-sep" role="separator"></div>
+  <button class="cx" role="menuitem" tabindex="-1"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg><span class="cl">Search in document</span><span class="ck">Ctrl F</span></button>
+  <button class="cx" role="menuitem" tabindex="-1"><svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/></svg><span class="cl">Ask AI about this</span><span class="ck">Ctrl Shift A</span></button>
+  <div class="ctx-sep" role="separator"></div>
+  <button class="cx" role="menuitem" tabindex="-1"><svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg><span class="cl">Focus mode</span><span class="ck">F11</span></button>
+  <button class="cx" role="menuitem" tabindex="-1"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="10" y1="3" x2="10" y2="17"/></svg><span class="cl">Split view</span><span class="ck">Ctrl \</span></button>
+</div>
+
+<!-- Quick Actions bar -->
+<div class="qa" id="qaBar" role="toolbar" aria-label="Quick actions">
+  <button class="qb" title="Copy" aria-label="Copy selection"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg></button>
+  <button class="qb" title="Copy as Markdown" aria-label="Copy as Markdown"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/><line x1="9" y1="10" x2="13" y2="10"/><line x1="9" y1="13" x2="13" y2="13"/></svg></button>
+  <div class="qa-div" aria-hidden="true"></div>
+  <button class="qb" title="Highlight" aria-label="Highlight selection"><svg viewBox="0 0 20 20"><path d="M13.5 3.5l3 3-8 8H5.5v-3z"/><path d="M11 6l3 3"/><path d="M4 17h12"/></svg></button>
+  <button class="qb" title="Bookmark" aria-label="Bookmark selection"><svg viewBox="0 0 20 20"><path d="M5 3h10a1 1 0 011 1v14l-5-3-5 3V4a1 1 0 011-1z"/></svg></button>
+  <div class="qa-div" aria-hidden="true"></div>
+  <button class="qb" title="Copy link" aria-label="Copy link to selection"><svg viewBox="0 0 20 20"><path d="M8 12l4-4"/><path d="M11.5 14.5a3.5 3.5 0 01-5 0l-1-1a3.5 3.5 0 010-5l1-1"/><path d="M8.5 5.5a3.5 3.5 0 015 0l1 1a3.5 3.5 0 010 5l-1 1"/></svg></button>
+  <button class="qb" title="Ask AI" aria-label="Ask AI about selection"><svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/><path d="M15 13l.8 2.2L18 16l-2.2.8L15 19l-.8-2.2L12 16l2.2-.8z" opacity=".5"/></svg></button>
+</div>
+
+<!-- Toasts -->
+<div class="toast-container" id="toasts" aria-live="polite"></div>
+
+<!-- Keyboard hints -->
+<div class="hints" id="hints" aria-hidden="true">
+  <div class="hint"><kbd>Ctrl K</kbd> Command palette</div>
+  <div class="hint"><kbd>Ctrl B</kbd> Navigation</div>
+  <div class="hint"><kbd>Ctrl Shift O</kbd> Outline</div>
+  <div class="hint"><kbd>F11</kbd> Focus mode</div>
+  <div class="hint"><kbd>Ctrl +/-</kbd> Zoom</div>
+  <div class="hint"><kbd>Ctrl Shift +/-</kbd> Opacity</div>
+</div>
+
+<!-- Focus message -->
+<div class="focus-msg" id="focusMsg" role="status">Focus Mode — press F11 or Esc to exit</div>
+
+<script>
+const $=id=>document.getElementById(id);
+const reader=$('reader'),palette=$('palette'),palInput=$('palInput');
+const navPanel=$('navPanel'),tocPanel=$('tocPanel');
+const ctxMenu=$('ctxMenu'),qaBar=$('qaBar');
+const hints=$('hints'),focusMsg=$('focusMsg');
+const docInner=$('docInner'),settingsPanel=$('settingsPanel');
+const srAnnounce=$('srAnnounce');
+
+let zoom=100,docWidth=720,isFocus=false,opacity=75;
+let closedTabs=[];
+
+// [FIX #3] Screen reader announcements
+function announce(msg){srAnnounce.textContent='';requestAnimationFrame(()=>{srAnnounce.textContent=msg})}
+
+// Stars
+const sc=$('stars');
+for(let i=0;i<80;i++){const s=document.createElement('div');s.className='star';s.style.left=Math.random()*100+'%';s.style.top=Math.random()*60+'%';s.style.opacity=Math.random()*.5+.1;s.style.width=s.style.height=(Math.random()*2+1)+'px';sc.appendChild(s)}
+
+// Theme — [FIX #9] instant/100ms transitions
+function toggleTheme(){
+  document.body.classList.toggle('light');
+  announce(document.body.classList.contains('light')?'Light theme':'Dark theme');
+}
+function setTheme(t,el){
+  document.querySelectorAll('.th-opt').forEach(e=>{e.classList.remove('on');e.setAttribute('aria-checked','false')});
+  el.classList.add('on');el.setAttribute('aria-checked','true');
+  if(t==='light')document.body.classList.add('light');
+  else if(t==='dark')document.body.classList.remove('light');
+  announce(t.charAt(0).toUpperCase()+t.slice(1)+' theme');
+}
+
+// Zoom
+function changeZoom(d){
+  zoom=Math.max(50,Math.min(200,zoom+d));
+  $('zoomVal').textContent=zoom+'%';
+  docInner.style.transform='scale('+(zoom/100)+')';
+  docInner.style.transformOrigin='top center';
+  announce('Zoom '+zoom+'%');
+  checkContrast();
+}
+
+// Width
+function changeWidth(d){
+  docWidth=Math.max(600,Math.min(1000,docWidth+d));
+  docInner.style.width=docWidth+'px';
+  $('widthVal').textContent=docWidth;
+  $('wSlider').value=docWidth;
+}
+function setWidth(v){
+  docWidth=parseInt(v);
+  docInner.style.width=docWidth+'px';
+  $('widthVal').textContent=docWidth;
+}
+
+// [FEATURE] Opacity with keyboard shortcuts (Ctrl+Shift+Plus/Minus)
+function changeOpacity(d){
+  opacity=Math.max(40,Math.min(100,opacity+d));
+  applyOpacity();
+}
+function setOpacity(v){
+  opacity=parseInt(v);
+  applyOpacity();
+}
+function applyOpacity(){
+  $('opVal').textContent=opacity+'%';
+  $('oSlider').value=opacity;
+  reader.style.background=`rgba(18,20,24,${opacity/100})`;
+  if(document.body.classList.contains('light')){
+    reader.style.background=`rgba(255,255,255,${Math.min(1,opacity/100+0.05)})`;
+  }
+  announce('Opacity '+opacity+'%');
+  checkContrast();
+}
+
+// [FEATURE] Contrast safety validation
+function checkContrast(){
+  const warn=$('contrastWarn');
+  if(opacity<55){warn.classList.add('vis');announce('Warning: low contrast, readability may be reduced')}
+  else{warn.classList.remove('vis')}
+}
+
+// [FEATURE] Window radius options
+function setRadius(r,el){
+  document.querySelectorAll('.rad-opt').forEach(e=>{e.classList.remove('on');e.setAttribute('aria-checked','false')});
+  el.classList.add('on');el.setAttribute('aria-checked','true');
+  document.documentElement.style.setProperty('--reader-radius',r+'px');
+  announce('Window radius '+r+'px');
+}
+
+// [FEATURE] Background modes
+function setBg(mode,el){
+  document.querySelectorAll('.bg-opt').forEach(e=>{e.classList.remove('on');e.setAttribute('aria-checked','false')});
+  el.classList.add('on');el.setAttribute('aria-checked','true');
+  const bg=document.querySelector('.background');
+  const sky=document.querySelector('.bg-sky');
+  const mtns=document.querySelector('.bg-mountains');
+  const fog=document.querySelector('.bg-fog');
+  if(mode==='gradient'){mtns.style.display='';fog.style.display='';sky.style.opacity='1'}
+  else if(mode==='solid'){mtns.style.display='none';fog.style.display='none';sky.style.opacity='0'}
+  else if(mode==='frost'){mtns.style.display='none';fog.style.display='';sky.style.opacity='.3'}
+  announce('Background: '+mode);
+}
+
+// Focus
+function toggleFocus(){
+  isFocus=!isFocus;
+  reader.classList.toggle('focus',isFocus);
+  $('focusBtn').classList.toggle('on',isFocus);
+  $('focusBtn').setAttribute('aria-pressed',isFocus);
+  if(isFocus){focusMsg.classList.add('vis');setTimeout(()=>focusMsg.classList.remove('vis'),2000);announce('Focus mode enabled')}
+  else{announce('Focus mode disabled')}
+  settingsPanel.classList.remove('vis');
+}
+
+// Settings
+function toggleSettings(){
+  const vis=settingsPanel.classList.toggle('vis');
+  $('settingsBtn').setAttribute('aria-expanded',vis);
+}
+
+// Command Palette
+function openPalette(){palette.classList.add('vis');palInput.focus();palInput.value='';announce('Command palette opened')}
+function closePalette(){palette.classList.remove('vis');announce('Command palette closed')}
+
+// Code fold
+let folded=true;
+function toggleFold(){
+  folded=!folded;
+  $('foldMid').classList.toggle('cblock-hidden',folded);
+  $('foldBtn').classList.toggle('open',!folded);
+  $('foldBtn').setAttribute('aria-expanded',!folded);
+  $('foldLabel').textContent=folded?'32 more lines':'collapse';
+  announce(folded?'Code block collapsed':'Code block expanded');
+}
+$('foldBtn').addEventListener('click',toggleFold);
+
+// [FEATURE] Heading collapse — click=toggle, Alt+click=collapse all same level
+document.querySelectorAll('.doc-inner h2').forEach(h2=>{
+  h2.addEventListener('click',e=>{
+    const section=h2.nextElementSibling;
+    if(!section||!section.classList.contains('doc-section'))return;
+    const shouldCollapse=!h2.classList.contains('collapsed');
+    if(e.altKey){
+      document.querySelectorAll('.doc-inner h2').forEach(other=>{
+        const otherSec=other.nextElementSibling;
+        if(otherSec&&otherSec.classList.contains('doc-section')){
+          other.classList.toggle('collapsed',shouldCollapse);
+          other.setAttribute('aria-expanded',!shouldCollapse);
+          otherSec.classList.toggle('collapsed',shouldCollapse);
+        }
+      });
+      announce(shouldCollapse?'All sections collapsed':'All sections expanded');
+    }else{
+      h2.classList.toggle('collapsed');
+      section.classList.toggle('collapsed');
+      const expanded=!h2.classList.contains('collapsed');
+      h2.setAttribute('aria-expanded',expanded);
+      announce(expanded?'Section expanded':'Section collapsed');
+    }
+  });
+});
+
+// [FIX #6] Context menu — keyboard access + arrow key navigation
+function showCtx(e){
+  e.preventDefault();
+  ctxMenu.style.left=Math.min(e.clientX,window.innerWidth-260)+'px';
+  ctxMenu.style.top=Math.min(e.clientY,window.innerHeight-350)+'px';
+  ctxMenu.classList.add('vis');
+  const firstItem=ctxMenu.querySelector('[role="menuitem"]');
+  if(firstItem){firstItem.focus();setCtxFocus(firstItem)}
+}
+function hideCtx(){ctxMenu.classList.remove('vis');ctxMenu.querySelectorAll('.cx').forEach(c=>c.classList.remove('focused'))}
+
+let ctxFocusIdx=0;
+function setCtxFocus(el){
+  ctxMenu.querySelectorAll('.cx').forEach(c=>c.classList.remove('focused'));
+  el.classList.add('focused');
+  el.focus();
+}
+function getCtxItems(){return[...ctxMenu.querySelectorAll('[role="menuitem"]')]}
+
+ctxMenu.addEventListener('keydown',e=>{
+  const items=getCtxItems();
+  const idx=items.indexOf(document.activeElement);
+  if(e.key==='ArrowDown'){e.preventDefault();const next=items[(idx+1)%items.length];setCtxFocus(next)}
+  else if(e.key==='ArrowUp'){e.preventDefault();const prev=items[(idx-1+items.length)%items.length];setCtxFocus(prev)}
+  else if(e.key==='Escape'){hideCtx()}
+  else if(e.key==='Enter'||e.key===' '){e.preventDefault();document.activeElement.click()}
+});
+
+// Context menu item actions
+const ctxActions=['copy','copymd','','highlight','bookmark','','search','ai','','focus','split'];
+ctxMenu.querySelectorAll('[role="menuitem"]').forEach((item,i)=>{
+  item.addEventListener('click',()=>{
+    const action=ctxActions.filter(a=>a!=='')[i>=3?i-Math.floor(i/3):i]||ctxActions[i];
+    if(item.querySelector('.cl').textContent==='Copy')doCopy();
+    else if(item.querySelector('.cl').textContent==='Copy as Markdown'){showToast('ok','Copied as Markdown');hideCtx()}
+    else if(item.querySelector('.cl').textContent==='Bookmark'){showToast('ok','Bookmarked');hideCtx()}
+    else if(item.querySelector('.cl').textContent==='Search in document'){showToast('info','Search opened');hideCtx()}
+    else if(item.querySelector('.cl').textContent.includes('AI')){showToast('info','AI thinking...');hideCtx()}
+    else if(item.querySelector('.cl').textContent==='Focus mode'){toggleFocus();hideCtx()}
+    else if(item.querySelector('.cl').textContent==='Split view'){showToast('info','Split view activated');hideCtx()}
+  });
+});
+
+// Highlight dots in context menu
+ctxMenu.querySelectorAll('.hl-dot').forEach(dot=>{
+  dot.addEventListener('click',e=>{
+    e.stopPropagation();
+    showToast('ok','Highlighted in '+dot.dataset.color);
+    hideCtx();
+  });
+});
+
+// Quick actions on text selection
+function checkSelection(){
+  const sel=window.getSelection();
+  if(sel&&sel.toString().trim().length>0){
+    const r=sel.getRangeAt(0).getBoundingClientRect();
+    qaBar.style.left=Math.max(0,Math.min(window.innerWidth-qaBar.offsetWidth,(r.left+r.width/2-qaBar.offsetWidth/2)))+'px';
+    qaBar.style.top=Math.max(0,(r.top-44))+'px';
+    qaBar.classList.add('vis');
+  }else{
+    qaBar.classList.remove('vis');
+  }
+}
+
+// Quick action button handlers
+const qaActions=['copy','copymd','','highlight','bookmark','','link','ai'];
+qaBar.querySelectorAll('.qb').forEach((btn,i)=>{
+  btn.addEventListener('click',()=>{
+    const title=btn.getAttribute('title');
+    if(title==='Copy')doCopy();
+    else if(title==='Copy as Markdown'){showToast('ok','Copied as Markdown')}
+    else if(title==='Highlight'){showToast('ok','Highlighted')}
+    else if(title==='Bookmark'){showToast('ok','Bookmarked')}
+    else if(title==='Copy link'){showToast('ok','Link copied')}
+    else if(title==='Ask AI'){showToast('info','AI thinking...')}
+    qaBar.classList.remove('vis');
+  });
+});
+
+function doCopy(){
+  const sel=window.getSelection();
+  if(sel&&sel.toString()){
+    navigator.clipboard.writeText(sel.toString()).then(()=>showToast('ok','Copied to clipboard'));
+  }
+  hideCtx();
+  qaBar.classList.remove('vis');
+}
+
+// Copy code buttons
+document.querySelectorAll('.cblock-copy').forEach(btn=>{
+  btn.addEventListener('click',()=>showToast('ok','Copied to clipboard'));
+});
+
+// Toast
+function showToast(type,msg){
+  const t=document.createElement('div');
+  t.className='toast '+type;
+  t.setAttribute('role','status');
+  const svg=type==='ok'
+    ?'<svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><polyline points="7,10 9.5,12.5 13.5,7.5"/></svg>'
+    :'<svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/></svg>';
+  t.innerHTML=svg+msg;
+  $('toasts').appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('vis'));
+  setTimeout(()=>{t.classList.remove('vis');setTimeout(()=>t.remove(),200)},2000);
+  hideCtx();
+}
+
+// Streaming toggle
+$('logo').addEventListener('click',()=>{
+  const on=$('streamBorder').classList.toggle('on');
+  if(on){announce('Receiving content');reader.setAttribute('aria-busy','true')}
+  else{announce('Content complete');reader.removeAttribute('aria-busy')}
+});
+
+// [FIX #8] Tab management — full spec: click, Ctrl+click, middle-click, double-click pin, Ctrl+Tab, Ctrl+W, Ctrl+Shift+T
+function updateTabVisibility(){
+  const tabs=document.querySelectorAll('.tab');
+  $('tabbar').classList.toggle('single',tabs.length<=1);
+}
+
+document.querySelectorAll('.tab').forEach(tab=>{
+  tab.addEventListener('click',e=>{
+    if(e.target.closest('.tc')){
+      closeTab(tab);return;
+    }
+    if(e.ctrlKey||e.metaKey)return;
+    activateTab(tab);
+  });
+  tab.addEventListener('auxclick',e=>{
+    if(e.button===1){e.preventDefault();closeTab(tab)}
+  });
+  tab.addEventListener('dblclick',e=>{
+    if(e.target.closest('.tc'))return;
+    tab.classList.toggle('pinned');
+    announce(tab.classList.contains('pinned')?'Tab pinned':'Tab unpinned');
+  });
+});
+
+function activateTab(tab){
+  document.querySelectorAll('.tab').forEach(t=>{t.classList.remove('on');t.setAttribute('aria-selected','false');t.tabIndex=-1});
+  tab.classList.add('on');tab.setAttribute('aria-selected','true');tab.tabIndex=0;
+  const name=tab.textContent.trim().split(' ')[0];
+  announce('Switched to '+name);
+}
+
+function closeTab(tab){
+  if(tab.classList.contains('pinned'))return;
+  closedTabs.push({html:tab.outerHTML,index:[...tab.parentNode.children].indexOf(tab)});
+  const wasActive=tab.classList.contains('on');
+  const sibling=tab.nextElementSibling||tab.previousElementSibling;
+  tab.remove();
+  if(wasActive&&sibling&&sibling.classList.contains('tab'))activateTab(sibling);
+  updateTabVisibility();
+  announce('Tab closed');
+}
+
+function reopenTab(){
+  if(!closedTabs.length)return;
+  const last=closedTabs.pop();
+  const tabbar=$('tabbar');
+  const temp=document.createElement('div');
+  temp.innerHTML=last.html;
+  const tab=temp.firstElementChild;
+  tabbar.appendChild(tab);
+  tab.addEventListener('click',e=>{if(e.target.closest('.tc')){closeTab(tab);return}if(!e.ctrlKey)activateTab(tab)});
+  tab.addEventListener('auxclick',e=>{if(e.button===1){e.preventDefault();closeTab(tab)}});
+  tab.addEventListener('dblclick',e=>{if(!e.target.closest('.tc'))tab.classList.toggle('pinned')});
+  activateTab(tab);
+  updateTabVisibility();
+  announce('Tab reopened');
+}
+
+function nextTab(){
+  const tabs=[...document.querySelectorAll('.tab')];
+  const idx=tabs.findIndex(t=>t.classList.contains('on'));
+  activateTab(tabs[(idx+1)%tabs.length]);
+}
+function prevTab(){
+  const tabs=[...document.querySelectorAll('.tab')];
+  const idx=tabs.findIndex(t=>t.classList.contains('on'));
+  activateTab(tabs[(idx-1+tabs.length)%tabs.length]);
+}
+
+updateTabVisibility();
+
+// TOC items
+document.querySelectorAll('.ti').forEach(ti=>{
+  ti.addEventListener('click',()=>{
+    document.querySelectorAll('.ti').forEach(t=>t.classList.remove('on'));
+    ti.classList.add('on');
+    const s=ti.dataset.s;
+    const h=document.querySelector(`[data-section="${s}"]`);
+    if(h)h.scrollIntoView({behavior:'smooth',block:'start'});
+  });
+  ti.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();ti.click()}});
+});
+
+// Palette tabs
+document.querySelectorAll('.pal-tab').forEach(pt=>{
+  pt.addEventListener('click',()=>{
+    document.querySelectorAll('.pal-tab').forEach(t=>{t.classList.remove('on');t.setAttribute('aria-selected','false')});
+    pt.classList.add('on');pt.setAttribute('aria-selected','true');
+  });
+});
+
+// [FEATURE] Nav search with fuzzy filtering
+$('navSearchInput').addEventListener('input',e=>{
+  const q=e.target.value.toLowerCase();
+  document.querySelectorAll('.nv[data-nav-name]').forEach(nv=>{
+    const name=nv.dataset.navName.toLowerCase();
+    nv.classList.toggle('hidden',q.length>0&&!name.includes(q));
+  });
+});
+
+// Settings from nav
+$('openSettings').addEventListener('click',()=>{
+  navPanel.classList.remove('vis');
+  toggleSettings();
+});
+
+// [FULL] Key bindings — all spec shortcuts
+document.addEventListener('keydown',e=>{
+  // Command palette
+  if((e.ctrlKey||e.metaKey)&&e.key==='k'){e.preventDefault();palette.classList.contains('vis')?closePalette():openPalette()}
+  // Escape
+  if(e.key==='Escape'){closePalette();hideCtx();qaBar.classList.remove('vis');settingsPanel.classList.remove('vis');$('settingsBtn').setAttribute('aria-expanded','false');if(isFocus)toggleFocus()}
+  // Focus mode
+  if(e.key==='F11'){e.preventDefault();toggleFocus()}
+  // Nav toggle
+  if((e.ctrlKey||e.metaKey)&&e.key==='b'){e.preventDefault();const vis=navPanel.classList.toggle('vis');tocPanel.classList.remove('vis');announce(vis?'Navigation panel':'Navigation closed')}
+  // Outline toggle
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==='O'){e.preventDefault();const vis=tocPanel.classList.toggle('vis');navPanel.classList.remove('vis');announce(vis?'Table of contents, 6 headings':'Outline closed')}
+  // Keyboard hints
+  if(e.key==='Alt')hints.classList.add('vis');
+  // Zoom
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&(e.key==='='||e.key==='+')){e.preventDefault();changeZoom(10)}
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='-'){e.preventDefault();changeZoom(-10)}
+  if((e.ctrlKey||e.metaKey)&&!e.shiftKey&&e.key==='0'){e.preventDefault();zoom=100;$('zoomVal').textContent='100%';docInner.style.transform='scale(1)';announce('Zoom reset to 100%')}
+  // [FEATURE] Opacity (Ctrl+Shift+Plus/Minus)
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&(e.key==='='||e.key==='+')){e.preventDefault();changeOpacity(5)}
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==='-'){e.preventDefault();changeOpacity(-5)}
+  // Tab management
+  if(e.ctrlKey&&e.key==='Tab'){e.preventDefault();e.shiftKey?prevTab():nextTab()}
+  if((e.ctrlKey||e.metaKey)&&e.key==='w'){e.preventDefault();const active=document.querySelector('.tab.on');if(active)closeTab(active)}
+  if((e.ctrlKey||e.metaKey)&&e.shiftKey&&e.key==='T'){e.preventDefault();reopenTab()}
+  // [FIX #6] Context menu via keyboard (Shift+F10)
+  if(e.shiftKey&&e.key==='F10'){
+    e.preventDefault();
+    const rect=$('docScroll').getBoundingClientRect();
+    ctxMenu.style.left=(rect.left+rect.width/2-120)+'px';
+    ctxMenu.style.top=(rect.top+rect.height/2-100)+'px';
+    ctxMenu.classList.add('vis');
+    const firstItem=ctxMenu.querySelector('[role="menuitem"]');
+    if(firstItem){firstItem.focus();setCtxFocus(firstItem)}
+  }
+});
+document.addEventListener('keyup',e=>{if(e.key==='Alt')hints.classList.remove('vis')});
+
+// Right click
+document.querySelector('.doc').addEventListener('contextmenu',showCtx);
+document.addEventListener('click',e=>{
+  if(!ctxMenu.contains(e.target))hideCtx();
+  if(!settingsPanel.contains(e.target)&&!e.target.closest('#settingsBtn')&&!e.target.closest('#openSettings')){
+    settingsPanel.classList.remove('vis');
+    $('settingsBtn').setAttribute('aria-expanded','false');
+  }
+});
+palette.addEventListener('click',e=>{if(e.target===palette)closePalette()});
+
+// Selection -> quick actions
+document.addEventListener('mouseup',()=>setTimeout(checkSelection,10));
+document.addEventListener('keyup',e=>{if(e.key!=='Alt')setTimeout(checkSelection,10)});
+$('docScroll').addEventListener('scroll',()=>qaBar.classList.remove('vis'));
+
+// Initial announcements
+announce('system-design.md loaded, 6 sections');
+</script>
+</body>
+</html>

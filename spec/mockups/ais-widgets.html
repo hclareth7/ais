@@ -1,0 +1,1857 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ais — widget inventory</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --bg: #0B0D10;
+    --surface: rgba(18,20,24,0.82);
+    --surface-solid: #121418;
+    --surface-elevated: rgba(24,27,32,0.9);
+    --text-primary: #F5F7FA;
+    --text-secondary: #B6BCC6;
+    --text-tertiary: #6B7280;
+    --text-ghost: #3D4450;
+    --border: rgba(255,255,255,0.08);
+    --border-hover: rgba(255,255,255,0.14);
+    --border-focus: rgba(120,160,255,0.5);
+    --accent: rgba(120,160,255,0.7);
+    --accent-solid: #7BA0FF;
+    --accent-dim: rgba(120,160,255,0.12);
+    --accent-text: #A8C4FF;
+    --hover-bg: rgba(255,255,255,0.06);
+    --active-bg: rgba(120,160,255,0.12);
+    --code-bg: rgba(255,255,255,0.04);
+    --code-border: rgba(255,255,255,0.06);
+    --danger: #EF4444;
+    --danger-dim: rgba(239,68,68,0.12);
+    --warning: #F59E0B;
+    --warning-dim: rgba(245,158,11,0.1);
+    --success: #10B981;
+    --success-dim: rgba(16,185,129,0.1);
+    --highlight-yellow: rgba(250,204,21,0.2);
+    --highlight-green: rgba(74,222,128,0.15);
+    --highlight-blue: rgba(96,165,250,0.15);
+    --highlight-pink: rgba(244,114,182,0.15);
+    --scrollbar-thumb: rgba(255,255,255,0.1);
+    --icon-stroke: #B6BCC6;
+    --icon-stroke-active: #A8C4FF;
+  }
+
+  .light {
+    --bg: #F4F5F7;
+    --surface: rgba(255,255,255,0.82);
+    --surface-solid: #FFFFFF;
+    --surface-elevated: rgba(255,255,255,0.95);
+    --text-primary: #111827;
+    --text-secondary: #4B5563;
+    --text-tertiary: #9CA3AF;
+    --text-ghost: #D1D5DB;
+    --border: rgba(0,0,0,0.06);
+    --border-hover: rgba(0,0,0,0.12);
+    --border-focus: rgba(60,100,220,0.5);
+    --accent: rgba(60,100,220,0.7);
+    --accent-solid: #3B6CE7;
+    --accent-dim: rgba(60,100,220,0.08);
+    --accent-text: #3B6CE7;
+    --hover-bg: rgba(0,0,0,0.04);
+    --active-bg: rgba(60,100,220,0.08);
+    --code-bg: rgba(0,0,0,0.03);
+    --code-border: rgba(0,0,0,0.06);
+    --danger: #DC2626;
+    --danger-dim: rgba(220,38,38,0.08);
+    --warning: #D97706;
+    --warning-dim: rgba(217,119,6,0.08);
+    --success: #059669;
+    --success-dim: rgba(5,150,105,0.08);
+    --highlight-yellow: rgba(250,204,21,0.3);
+    --highlight-green: rgba(74,222,128,0.2);
+    --highlight-blue: rgba(96,165,250,0.2);
+    --highlight-pink: rgba(244,114,182,0.2);
+    --scrollbar-thumb: rgba(0,0,0,0.12);
+    --icon-stroke: #4B5563;
+    --icon-stroke-active: #3B6CE7;
+  }
+
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+    background: var(--bg);
+    color: var(--text-primary);
+    min-height: 100vh;
+    overflow-x: hidden;
+    transition: background 0.3s;
+  }
+
+  /* ── Page layout ── */
+  .page {
+    max-width: 1400px;
+    margin: 0 auto;
+    padding: 60px 40px 120px;
+  }
+
+  .page-header {
+    margin-bottom: 64px;
+  }
+  .page-header h1 {
+    font-size: 32px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    margin-bottom: 8px;
+  }
+  .page-header .subtitle {
+    font-size: 15px;
+    color: var(--text-secondary);
+    font-weight: 300;
+  }
+
+  .section {
+    margin-bottom: 72px;
+  }
+  .section-title {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.1em;
+    color: var(--text-tertiary);
+    margin-bottom: 24px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .section-desc {
+    font-size: 13px;
+    color: var(--text-tertiary);
+    margin-top: -16px;
+    margin-bottom: 24px;
+    max-width: 600px;
+    line-height: 1.6;
+  }
+
+  .widget-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    gap: 24px;
+  }
+
+  .widget-card {
+    background: var(--surface);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 28px;
+    position: relative;
+    transition: border-color 0.15s;
+  }
+  .widget-card:hover { border-color: var(--border-hover); }
+
+  .widget-card .card-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-tertiary);
+    margin-bottom: 20px;
+  }
+
+  .widget-card.wide {
+    grid-column: 1 / -1;
+  }
+
+  .widget-card.demo {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 200px;
+  }
+
+  /* ── Shared icon style ── */
+  .ais-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+  }
+  .ais-icon svg {
+    width: 20px;
+    height: 20px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    transition: stroke 0.12s;
+  }
+  .ais-icon.sm svg { width: 16px; height: 16px; }
+  .ais-icon.lg svg { width: 24px; height: 24px; }
+  .ais-icon.xl svg { width: 32px; height: 32px; }
+  .ais-icon.active svg { stroke: var(--icon-stroke-active); }
+
+  /* ── 1. ICONOGRAPHY ── */
+  .icon-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 4px;
+  }
+  .icon-cell {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 8px;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+  .icon-cell:hover { background: var(--hover-bg); }
+  .icon-cell .icon-name {
+    font-size: 10px;
+    color: var(--text-tertiary);
+    text-align: center;
+    line-height: 1.3;
+  }
+
+  /* ── 2. ACCESSIBILITY CONTROLS ── */
+  .a11y-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px;
+  }
+
+  .a11y-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 36px;
+    border: none;
+    background: transparent;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-radius: 10px;
+    transition: background 0.12s, color 0.12s;
+    position: relative;
+  }
+  .a11y-btn:hover { background: var(--hover-bg); color: var(--text-primary); }
+  .a11y-btn:hover svg { stroke: var(--text-primary); }
+  .a11y-btn.active { background: var(--active-bg); }
+  .a11y-btn.active svg { stroke: var(--accent-text); }
+  .a11y-btn svg {
+    width: 18px; height: 18px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    transition: stroke 0.12s;
+  }
+
+  .a11y-divider {
+    width: 1px;
+    height: 20px;
+    background: var(--border);
+    margin: 0 4px;
+  }
+
+  .a11y-value {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-secondary);
+    min-width: 40px;
+    text-align: center;
+    user-select: none;
+  }
+
+  /* Zoom control */
+  .zoom-control {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px;
+  }
+
+  /* Width slider */
+  .width-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 8px;
+  }
+  .width-slider {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+  .width-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent-solid);
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+  .width-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    background: var(--accent-solid);
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  }
+
+  /* ── 3. CONTEXT MENU (Right click) ── */
+  .context-menu {
+    background: var(--surface-elevated);
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 6px;
+    min-width: 240px;
+    box-shadow: 0 12px 40px rgba(0,0,0,0.3), 0 4px 12px rgba(0,0,0,0.15);
+  }
+
+  .ctx-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.1s;
+    font-size: 13px;
+    color: var(--text-secondary);
+  }
+  .ctx-item:hover { background: var(--hover-bg); color: var(--text-primary); }
+  .ctx-item:hover svg { stroke: var(--text-primary); }
+  .ctx-item svg {
+    width: 16px; height: 16px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+    transition: stroke 0.12s;
+  }
+  .ctx-item .ctx-label { flex: 1; }
+  .ctx-item .ctx-shortcut {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-ghost);
+  }
+
+  .ctx-separator {
+    height: 1px;
+    background: var(--border);
+    margin: 4px 8px;
+  }
+
+  .ctx-submenu {
+    position: relative;
+  }
+  .ctx-submenu .ctx-arrow {
+    font-size: 10px;
+    color: var(--text-ghost);
+  }
+
+  .highlight-dots {
+    display: flex;
+    gap: 4px;
+    margin-left: auto;
+  }
+  .highlight-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 1.5px solid transparent;
+    transition: border-color 0.12s, transform 0.12s;
+  }
+  .highlight-dot:hover { transform: scale(1.2); border-color: rgba(255,255,255,0.3); }
+  .highlight-dot.yellow { background: var(--highlight-yellow); border-color: rgba(250,204,21,0.4); }
+  .highlight-dot.green { background: var(--highlight-green); border-color: rgba(74,222,128,0.3); }
+  .highlight-dot.blue { background: var(--highlight-blue); border-color: rgba(96,165,250,0.3); }
+  .highlight-dot.pink { background: var(--highlight-pink); border-color: rgba(244,114,182,0.3); }
+
+  /* ── 4. QUICK ACTIONS (hover on text) ── */
+  .quick-actions-demo {
+    position: relative;
+    padding: 16px 0;
+  }
+  .demo-text {
+    font-size: 15px;
+    color: var(--text-secondary);
+    line-height: 1.75;
+    position: relative;
+    cursor: text;
+  }
+  .demo-text .selected {
+    background: var(--accent-dim);
+    border-radius: 3px;
+    padding: 1px 0;
+  }
+
+  .quick-actions-bar {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 4px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.25);
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: -8px;
+    z-index: 10;
+  }
+
+  .qa-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: background 0.1s;
+    position: relative;
+  }
+  .qa-btn:hover { background: var(--hover-bg); }
+  .qa-btn svg {
+    width: 16px; height: 16px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    transition: stroke 0.12s;
+  }
+  .qa-btn:hover svg { stroke: var(--text-primary); }
+
+  .qa-divider {
+    width: 1px;
+    height: 18px;
+    background: var(--border);
+    margin: 0 2px;
+  }
+
+  /* ── 5. COMMAND PALETTE / SEARCH ── */
+  .search-panel {
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.4);
+    overflow: hidden;
+    width: 100%;
+    max-width: 520px;
+  }
+
+  .search-input-row {
+    padding: 14px 18px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+  .search-input-row svg {
+    width: 18px; height: 18px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+  .search-input-row input {
+    background: none;
+    border: none;
+    outline: none;
+    color: var(--text-primary);
+    font-size: 15px;
+    font-family: inherit;
+    width: 100%;
+  }
+  .search-input-row input::placeholder { color: var(--text-tertiary); }
+  .search-kbd {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-ghost);
+    padding: 2px 8px;
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    white-space: nowrap;
+  }
+
+  .search-tabs {
+    display: flex;
+    gap: 0;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+  }
+  .search-tab {
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: color 0.12s, border-color 0.12s;
+  }
+  .search-tab:hover { color: var(--text-secondary); }
+  .search-tab.active { color: var(--accent-text); border-color: var(--accent-solid); }
+
+  .search-results {
+    padding: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+  }
+
+  .search-result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    cursor: pointer;
+    transition: background 0.1s;
+  }
+  .search-result:hover, .search-result.selected { background: var(--hover-bg); }
+  .search-result svg {
+    width: 18px; height: 18px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+  .search-result .sr-info { flex: 1; }
+  .search-result .sr-title { font-size: 14px; color: var(--text-primary); }
+  .search-result .sr-path { font-size: 11px; color: var(--text-tertiary); margin-top: 2px; }
+  .search-result .sr-shortcut {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-ghost);
+    padding: 2px 6px;
+    background: var(--hover-bg);
+    border-radius: 4px;
+  }
+
+  .search-footer {
+    padding: 10px 18px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    font-size: 11px;
+    color: var(--text-ghost);
+  }
+  .search-footer kbd {
+    font-family: 'JetBrains Mono', monospace;
+    padding: 1px 5px;
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    font-size: 10px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── 6. FOCUS MODE CONTROL ── */
+  .focus-control {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 10px 16px;
+  }
+  .focus-control .fc-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    flex: 1;
+  }
+  .focus-toggle {
+    width: 44px;
+    height: 24px;
+    background: var(--border);
+    border-radius: 12px;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s;
+    border: none;
+  }
+  .focus-toggle.active { background: var(--accent-solid); }
+  .focus-toggle::after {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    transition: transform 0.2s;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.2);
+  }
+  .focus-toggle.active::after { transform: translateX(20px); }
+
+  .focus-strip {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 28px;
+    padding: 6px 8px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+  }
+  .fs-btn {
+    width: 36px;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: transparent;
+    cursor: pointer;
+    border-radius: 50%;
+    transition: background 0.12s;
+  }
+  .fs-btn:hover { background: var(--hover-bg); }
+  .fs-btn.active { background: var(--active-bg); }
+  .fs-btn svg {
+    width: 18px; height: 18px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    transition: stroke 0.12s;
+  }
+  .fs-btn:hover svg { stroke: var(--text-primary); }
+  .fs-btn.active svg { stroke: var(--accent-text); }
+
+  /* ── 7. SETTINGS PANEL ── */
+  .settings-panel {
+    background: var(--surface-elevated);
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 24px;
+    width: 100%;
+    max-width: 340px;
+  }
+  .settings-panel .sp-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .settings-panel .sp-title svg {
+    width: 18px; height: 18px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .setting-row:last-child { border-bottom: none; }
+  .setting-label {
+    font-size: 13px;
+    color: var(--text-secondary);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .setting-label svg {
+    width: 16px; height: 16px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .setting-value {
+    font-size: 13px;
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .setting-chevron {
+    font-size: 12px;
+    color: var(--text-ghost);
+  }
+
+  .theme-selector {
+    display: flex;
+    gap: 6px;
+    background: var(--hover-bg);
+    border-radius: 10px;
+    padding: 3px;
+  }
+  .theme-option {
+    padding: 6px 14px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    border: none;
+    background: transparent;
+    font-family: inherit;
+  }
+  .theme-option:hover { color: var(--text-secondary); }
+  .theme-option.active {
+    background: var(--surface-solid);
+    color: var(--text-primary);
+    box-shadow: 0 1px 4px rgba(0,0,0,0.15);
+  }
+
+  /* ── 8. CONTRAST WARNING ── */
+  .contrast-warning {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: var(--warning-dim);
+    border: 1px solid rgba(245,158,11,0.2);
+    border-radius: 10px;
+    font-size: 12px;
+    color: var(--warning);
+  }
+  .contrast-warning svg {
+    width: 16px; height: 16px;
+    stroke: var(--warning);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+
+  /* ── 9. TOAST / NOTIFICATION ── */
+  .toast {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 16px;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(30px);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+    font-size: 13px;
+    color: var(--text-secondary);
+    max-width: 360px;
+  }
+  .toast svg {
+    width: 18px; height: 18px;
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    flex-shrink: 0;
+  }
+  .toast.success svg { stroke: var(--success); }
+  .toast.info svg { stroke: var(--accent-solid); }
+
+  /* ── 10. TAB VARIANTS ── */
+  .tabs-demo {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    background: var(--surface-elevated);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 4px;
+  }
+  .tab-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 14px;
+    font-size: 13px;
+    color: var(--text-tertiary);
+    border-radius: 10px;
+    cursor: pointer;
+    transition: color 0.12s, background 0.12s;
+    white-space: nowrap;
+  }
+  .tab-item:hover { color: var(--text-secondary); background: var(--hover-bg); }
+  .tab-item.active { color: var(--text-primary); background: var(--active-bg); }
+  .tab-item .tab-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    opacity: 0;
+    transition: opacity 0.12s;
+    font-size: 10px;
+  }
+  .tab-item:hover .tab-close { opacity: 0.5; }
+  .tab-item .tab-close:hover { opacity: 1; background: var(--hover-bg); }
+  .tab-item .pin-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent-solid);
+  }
+
+  /* ── 11. TOOLTIP ── */
+  .tooltip-demo {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+    justify-content: center;
+    padding: 32px 0;
+  }
+  .tooltip-anchor {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 10px;
+    background: var(--hover-bg);
+    cursor: pointer;
+  }
+  .tooltip-anchor svg {
+    width: 18px; height: 18px;
+    stroke: var(--icon-stroke);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+  .tooltip-bubble {
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--surface-solid);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 11px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    pointer-events: none;
+  }
+  .tooltip-bubble::after {
+    content: '';
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    border: 5px solid transparent;
+    border-top-color: var(--surface-solid);
+  }
+  .tooltip-bubble kbd {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    padding: 1px 4px;
+    background: var(--hover-bg);
+    border-radius: 3px;
+    margin-left: 6px;
+    color: var(--text-ghost);
+  }
+
+  /* ── 12. EDGE ZONES ── */
+  .edge-demo {
+    position: relative;
+    height: 200px;
+    background: var(--code-bg);
+    border-radius: 16px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+  .edge-zone {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.12s;
+    cursor: pointer;
+  }
+  .edge-zone.left { left: 0; border-right: 1px dashed var(--border); }
+  .edge-zone.right { right: 0; border-left: 1px dashed var(--border); }
+  .edge-zone:hover { background: var(--accent-dim); }
+  .edge-zone .edge-line {
+    width: 3px;
+    height: 32px;
+    background: var(--text-ghost);
+    border-radius: 2px;
+    opacity: 0.3;
+    transition: opacity 0.12s, background 0.12s;
+  }
+  .edge-zone:hover .edge-line { opacity: 0.8; background: var(--accent-solid); }
+  .edge-label {
+    font-size: 12px;
+    color: var(--text-ghost);
+    text-align: center;
+  }
+  .edge-label span { display: block; font-size: 10px; margin-top: 2px; color: var(--text-ghost); }
+
+  /* ── 13. STREAMING INDICATORS ── */
+  .stream-demos {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .stream-demo-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+  .stream-demo-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    min-width: 80px;
+  }
+  .stream-bar {
+    flex: 1;
+    height: 40px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    position: relative;
+    overflow: hidden;
+    background: var(--code-bg);
+  }
+  .stream-bar.active {
+    animation: stream-glow 2s ease-in-out infinite;
+  }
+  @keyframes stream-glow {
+    0%, 100% { border-color: rgba(120,160,255,0.15); }
+    50% { border-color: rgba(120,160,255,0.5); }
+  }
+  .stream-bar.complete { border-color: var(--border); }
+  .stream-bar.error {
+    animation: stream-error 0.3s ease;
+    border-color: var(--danger);
+  }
+  @keyframes stream-error {
+    0%, 100% { border-color: var(--border); }
+    50% { border-color: var(--danger); }
+  }
+
+  /* ── Global theme toggle ── */
+  .global-theme-toggle {
+    position: fixed;
+    top: 24px;
+    right: 24px;
+    z-index: 100;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--surface);
+    backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    padding: 8px 14px;
+    cursor: pointer;
+    transition: border-color 0.12s;
+    user-select: none;
+  }
+  .global-theme-toggle:hover { border-color: var(--border-hover); }
+  .global-theme-toggle .tdot {
+    width: 14px; height: 14px;
+    border-radius: 50%;
+    transition: background 0.2s;
+  }
+  .global-theme-toggle .tdot.dk { background: #1E293B; border: 1px solid rgba(255,255,255,0.2); }
+  .global-theme-toggle .tdot.lt { background: #F5F7FA; border: 1px solid rgba(0,0,0,0.15); }
+  .global-theme-toggle .tlabel {
+    font-size: 11px;
+    color: var(--text-tertiary);
+  }
+
+  /* ── Scrollbar ── */
+  ::-webkit-scrollbar { width: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+</style>
+</head>
+<body>
+
+<!-- Theme toggle -->
+<div class="global-theme-toggle" id="themeToggle">
+  <span class="tdot dk"></span>
+  <span class="tdot lt"></span>
+  <span class="tlabel">Theme</span>
+</div>
+
+<div class="page">
+
+  <div class="page-header">
+    <h1>ais — widget inventory</h1>
+    <p class="subtitle">Every interface component, aligned to Ambient Intuition Design. Zero presence. Cognitive calm.</p>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 1. ICONOGRAPHY                              -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">1. Iconography</div>
+    <p class="section-desc">Custom SVG icons — 20×20, stroke 1.5px, round caps. Minimal, consistent, legible at small sizes. No filled icons. No emoji.</p>
+
+    <div class="widget-card wide">
+      <div class="card-label">System Icons</div>
+      <div class="icon-grid">
+
+        <!-- Document -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M6 2h6l4 4v12a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M12 2v4h4"/></svg></span>
+          <span class="icon-name">document</span>
+        </div>
+
+        <!-- Folder -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M3 5a1 1 0 011-1h3.586a1 1 0 01.707.293L9.586 5.586A1 1 0 0010.293 6H16a1 1 0 011 1v9a1 1 0 01-1 1H4a1 1 0 01-1-1V5z"/></svg></span>
+          <span class="icon-name">folder</span>
+        </div>
+
+        <!-- Search -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg></span>
+          <span class="icon-name">search</span>
+        </div>
+
+        <!-- Settings -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg></span>
+          <span class="icon-name">settings</span>
+        </div>
+
+        <!-- Star -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M10 2l2.5 5 5.5.8-4 3.9 1 5.3L10 14.5 4.9 17l1-5.3-4-3.9L7.5 7z"/></svg></span>
+          <span class="icon-name">favorite</span>
+        </div>
+
+        <!-- Clock -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><polyline points="10,6 10,10 13,12"/></svg></span>
+          <span class="icon-name">recent</span>
+        </div>
+
+        <!-- Zoom in -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg></span>
+          <span class="icon-name">zoom-in</span>
+        </div>
+
+        <!-- Zoom out -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/></svg></span>
+          <span class="icon-name">zoom-out</span>
+        </div>
+
+        <!-- Width expand -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="6,10 3,10" /><polyline points="14,10 17,10" /><polyline points="5,8.5 3,10 5,11.5"/><polyline points="15,8.5 17,10 15,11.5"/></svg></span>
+          <span class="icon-name">width-expand</span>
+        </div>
+
+        <!-- Width shrink -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="7,10 3,10" /><polyline points="13,10 17,10" /><polyline points="5,8.5 7,10 5,11.5"/><polyline points="15,8.5 13,10 15,11.5"/></svg></span>
+          <span class="icon-name">width-shrink</span>
+        </div>
+
+        <!-- Focus -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg></span>
+          <span class="icon-name">focus</span>
+        </div>
+
+        <!-- Exit focus -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M7 3H4a1 1 0 00-1 1v3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M3 13v3a1 1 0 001 1h3"/><path d="M7 7L3 3"/><path d="M13 7l4-4"/><path d="M7 13l-4 4"/><path d="M13 13l4 4"/></svg></span>
+          <span class="icon-name">exit-focus</span>
+        </div>
+
+        <!-- Copy -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg></span>
+          <span class="icon-name">copy</span>
+        </div>
+
+        <!-- Highlight -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M13.5 3.5l3 3-8 8H5.5v-3z"/><path d="M11 6l3 3"/><path d="M4 17h12"/></svg></span>
+          <span class="icon-name">highlight</span>
+        </div>
+
+        <!-- Bookmark -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M5 3h10a1 1 0 011 1v14l-5-3-5 3V4a1 1 0 011-1z"/></svg></span>
+          <span class="icon-name">bookmark</span>
+        </div>
+
+        <!-- Link -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M8 12l4-4"/><path d="M11.5 14.5a3.5 3.5 0 01-5 0l-1-1a3.5 3.5 0 010-5l1-1"/><path d="M8.5 5.5a3.5 3.5 0 015 0l1 1a3.5 3.5 0 010 5l-1 1"/></svg></span>
+          <span class="icon-name">link</span>
+        </div>
+
+        <!-- Share -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="14" cy="5" r="2.5"/><circle cx="6" cy="10" r="2.5"/><circle cx="14" cy="15" r="2.5"/><line x1="8.2" y1="8.8" x2="11.8" y2="6.2"/><line x1="8.2" y1="11.2" x2="11.8" y2="13.8"/></svg></span>
+          <span class="icon-name">share</span>
+        </div>
+
+        <!-- Outline / TOC -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><line x1="4" y1="5" x2="16" y2="5"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="13" x2="16" y2="13"/><line x1="4" y1="17" x2="16" y2="17"/><circle cx="4.5" cy="9" r="0.5" fill="currentColor" stroke="none"/><circle cx="4.5" cy="13" r="0.5" fill="currentColor" stroke="none"/></svg></span>
+          <span class="icon-name">outline</span>
+        </div>
+
+        <!-- Navigation -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><rect x="3" y="3" width="5" height="14" rx="1"/><line x1="11" y1="5" x2="17" y2="5"/><line x1="11" y1="9" x2="17" y2="9"/><line x1="11" y1="13" x2="15" y2="13"/></svg></span>
+          <span class="icon-name">navigation</span>
+        </div>
+
+        <!-- Theme -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity="0.15"/></svg></span>
+          <span class="icon-name">theme</span>
+        </div>
+
+        <!-- AI / Sparkle -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/><path d="M15 13l.8 2.2L18 16l-2.2.8L15 19l-.8-2.2L12 16l2.2-.8z" opacity="0.5"/></svg></span>
+          <span class="icon-name">ai</span>
+        </div>
+
+        <!-- Collapse -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><polyline points="6,8 10,12 14,8"/></svg></span>
+          <span class="icon-name">collapse</span>
+        </div>
+
+        <!-- Expand -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><polyline points="8,6 12,10 8,14"/></svg></span>
+          <span class="icon-name">expand</span>
+        </div>
+
+        <!-- Close -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><line x1="5" y1="5" x2="15" y2="15"/><line x1="15" y1="5" x2="5" y2="15"/></svg></span>
+          <span class="icon-name">close</span>
+        </div>
+
+        <!-- Split view -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="10" y1="3" x2="10" y2="17"/></svg></span>
+          <span class="icon-name">split-view</span>
+        </div>
+
+        <!-- Pin -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M12 2l4 4-2 3 1 4-3-1-3 3V12L6 10l3-2z"/><line x1="7" y1="15" x2="3" y2="19" opacity="0.5"/></svg></span>
+          <span class="icon-name">pin</span>
+        </div>
+
+        <!-- Code -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><polyline points="7,5 3,10 7,15"/><polyline points="13,5 17,10 13,15"/><line x1="11" y1="3" x2="9" y2="17" opacity="0.4"/></svg></span>
+          <span class="icon-name">code</span>
+        </div>
+
+        <!-- Workspace -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><rect x="2" y="2" width="7" height="7" rx="1.5"/><rect x="11" y="2" width="7" height="7" rx="1.5"/><rect x="2" y="11" width="7" height="7" rx="1.5"/><rect x="11" y="11" width="7" height="7" rx="1.5" opacity="0.4"/></svg></span>
+          <span class="icon-name">workspace</span>
+        </div>
+
+        <!-- Home -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><path d="M3 10l7-7 7 7"/><path d="M5 9v7a1 1 0 001 1h3v-4h2v4h3a1 1 0 001-1V9"/></svg></span>
+          <span class="icon-name">home</span>
+        </div>
+
+        <!-- Opacity -->
+        <div class="icon-cell">
+          <span class="ais-icon"><svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4" opacity="0.3"/><circle cx="10" cy="10" r="1.5" opacity="0.15"/></svg></span>
+          <span class="icon-name">opacity</span>
+        </div>
+
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 2. ACCESSIBILITY — ZOOM & WIDTH             -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">2. Accessibility Controls</div>
+    <p class="section-desc">Zoom, reading width, and opacity. Always available via keyboard and command palette.</p>
+
+    <div class="widget-grid">
+
+      <!-- Zoom bar -->
+      <div class="widget-card">
+        <div class="card-label">Zoom Control</div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="a11y-bar">
+            <button class="a11y-btn" title="Zoom out" id="zoomOut">
+              <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/></svg>
+            </button>
+            <span class="a11y-value" id="zoomValue">100%</span>
+            <button class="a11y-btn" title="Zoom in" id="zoomIn">
+              <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg>
+            </button>
+            <div class="a11y-divider"></div>
+            <button class="a11y-btn" title="Reset zoom">
+              <svg viewBox="0 0 20 20"><path d="M4 10a6 6 0 1011.3-2.8"/><polyline points="15,3 15.3,7.2 11,7"/></svg>
+            </button>
+          </div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">50%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">75%</span>
+            <span style="font-size:10px;color:var(--text-primary);padding:3px 8px;background:var(--active-bg);border-radius:5px;cursor:pointer;">100%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">125%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">150%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">200%</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-ghost);display:flex;gap:12px;">
+            <span><kbd style="font-family:'JetBrains Mono';font-size:10px;padding:1px 5px;background:var(--hover-bg);border:1px solid var(--border);border-radius:3px;">Ctrl +</kbd> zoom in</span>
+            <span><kbd style="font-family:'JetBrains Mono';font-size:10px;padding:1px 5px;background:var(--hover-bg);border:1px solid var(--border);border-radius:3px;">Ctrl -</kbd> zoom out</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Reading width -->
+      <div class="widget-card">
+        <div class="card-label">Reading Width</div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="width-control">
+            <span class="ais-icon sm">
+              <svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="5,8.5 7,10 5,11.5"/><polyline points="15,8.5 13,10 15,11.5"/></svg>
+            </span>
+            <input type="range" class="width-slider" min="60" max="95" value="82" id="widthSlider" />
+            <span class="ais-icon sm">
+              <svg viewBox="0 0 20 20"><line x1="10" y1="3" x2="10" y2="17"/><polyline points="3,7 3,5 17,5 17,7"/><polyline points="3,13 3,15 17,15 17,13"/><polyline points="5,8.5 3,10 5,11.5"/><polyline points="15,8.5 17,10 15,11.5"/></svg>
+            </span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;">
+            <span style="font-size:11px;color:var(--text-ghost);">60%</span>
+            <span class="a11y-value" id="widthValue">82%</span>
+            <span style="font-size:11px;color:var(--text-ghost);">95%</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--text-ghost);">
+            <svg width="14" height="14" viewBox="0 0 20 20" stroke="var(--text-ghost)" stroke-width="1.5" stroke-linecap="round" fill="none"><circle cx="10" cy="10" r="7"/><line x1="10" y1="7" x2="10" y2="11"/><circle cx="10" cy="13.5" r="0.5" fill="var(--text-ghost)" stroke="none"/></svg>
+            Document width: <span id="widthPx" style="color:var(--text-secondary);">720px</span> – targets 70–90 characters per line
+          </div>
+        </div>
+      </div>
+
+      <!-- Opacity / Transparency -->
+      <div class="widget-card">
+        <div class="card-label">Surface Opacity</div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="a11y-bar">
+            <button class="a11y-btn" title="Decrease opacity" id="opacityDown">
+              <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4" opacity="0.3"/></svg>
+            </button>
+            <span class="a11y-value" id="opacityValue">80%</span>
+            <button class="a11y-btn" title="Increase opacity" id="opacityUp">
+              <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="var(--icon-stroke)" opacity="0.15"/><circle cx="10" cy="10" r="7"/></svg>
+            </button>
+          </div>
+          <div style="display:flex;gap:6px;">
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">50%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">60%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">70%</span>
+            <span style="font-size:10px;color:var(--text-primary);padding:3px 8px;background:var(--active-bg);border-radius:5px;cursor:pointer;">80%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">90%</span>
+            <span style="font-size:10px;color:var(--text-ghost);padding:3px 8px;background:var(--hover-bg);border-radius:5px;cursor:pointer;">100%</span>
+          </div>
+          <div style="font-size:11px;color:var(--text-ghost);">
+            <kbd style="font-family:'JetBrains Mono';font-size:10px;padding:1px 5px;background:var(--hover-bg);border:1px solid var(--border);border-radius:3px;">Ctrl Shift +/-</kbd> adjust opacity
+          </div>
+        </div>
+      </div>
+
+      <!-- Contrast warning -->
+      <div class="widget-card">
+        <div class="card-label">Contrast Safety</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="contrast-warning">
+            <svg viewBox="0 0 20 20"><path d="M10 3l7.5 13H2.5z"/><line x1="10" y1="9" x2="10" y2="12"/><circle cx="10" cy="14" r="0.5" fill="var(--warning)" stroke="none"/></svg>
+            Low contrast — readability may be reduced
+          </div>
+          <div style="font-size:11px;color:var(--text-ghost);line-height:1.5;">
+            Shown when text contrast ratio drops below WCAG AA 4.5:1. Non-intrusive — the user is never blocked.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 3. CONTEXT MENU (right click)               -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">3. Context Menu — Right Click</div>
+    <p class="section-desc">Glass panel, appears on right-click over selected text or document area. Highlight colors inline.</p>
+
+    <div class="widget-grid">
+
+      <!-- Text selection context menu -->
+      <div class="widget-card">
+        <div class="card-label">Text Selected</div>
+        <div class="context-menu">
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg>
+            <span class="ctx-label">Copy</span>
+            <span class="ctx-shortcut">Ctrl C</span>
+          </div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/><line x1="9" y1="10" x2="13" y2="10"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+            <span class="ctx-label">Copy as Markdown</span>
+            <span class="ctx-shortcut">Ctrl Shift C</span>
+          </div>
+          <div class="ctx-separator"></div>
+          <div class="ctx-item ctx-submenu">
+            <svg viewBox="0 0 20 20"><path d="M13.5 3.5l3 3-8 8H5.5v-3z"/><path d="M11 6l3 3"/><path d="M4 17h12"/></svg>
+            <span class="ctx-label">Highlight</span>
+            <div class="highlight-dots">
+              <span class="highlight-dot yellow"></span>
+              <span class="highlight-dot green"></span>
+              <span class="highlight-dot blue"></span>
+              <span class="highlight-dot pink"></span>
+            </div>
+          </div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><path d="M5 3h10a1 1 0 011 1v14l-5-3-5 3V4a1 1 0 011-1z"/></svg>
+            <span class="ctx-label">Bookmark selection</span>
+          </div>
+          <div class="ctx-separator"></div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg>
+            <span class="ctx-label">Search in document</span>
+            <span class="ctx-shortcut">Ctrl F</span>
+          </div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/></svg>
+            <span class="ctx-label">Ask AI about this</span>
+            <span class="ctx-shortcut">Ctrl Shift A</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Document area context menu -->
+      <div class="widget-card">
+        <div class="card-label">No Selection</div>
+        <div class="context-menu">
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg>
+            <span class="ctx-label">Search in document</span>
+            <span class="ctx-shortcut">Ctrl F</span>
+          </div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><line x1="4" y1="5" x2="16" y2="5"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="13" x2="16" y2="13"/><line x1="4" y1="17" x2="16" y2="17"/></svg>
+            <span class="ctx-label">Show outline</span>
+            <span class="ctx-shortcut">Ctrl Shift O</span>
+          </div>
+          <div class="ctx-separator"></div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg>
+            <span class="ctx-label">Zoom in</span>
+            <span class="ctx-shortcut">Ctrl +</span>
+          </div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/></svg>
+            <span class="ctx-label">Zoom out</span>
+            <span class="ctx-shortcut">Ctrl -</span>
+          </div>
+          <div class="ctx-separator"></div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg>
+            <span class="ctx-label">Focus mode</span>
+            <span class="ctx-shortcut">F11</span>
+          </div>
+          <div class="ctx-item">
+            <svg viewBox="0 0 20 20"><rect x="2" y="3" width="16" height="14" rx="2"/><line x1="10" y1="3" x2="10" y2="17"/></svg>
+            <span class="ctx-label">Split view</span>
+            <span class="ctx-shortcut">Ctrl \</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 4. QUICK ACTIONS — hover on text             -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">4. Quick Actions — Hover on Selected Text</div>
+    <p class="section-desc">Floating toolbar appears above selected text. Disappears when selection is cleared. Glass aesthetic.</p>
+
+    <div class="widget-card wide">
+      <div class="card-label">Interactive Demo — select text to reveal</div>
+      <div class="quick-actions-demo">
+        <div class="quick-actions-bar">
+          <!-- Copy -->
+          <button class="qa-btn" title="Copy">
+            <svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg>
+          </button>
+          <!-- Copy as markdown -->
+          <button class="qa-btn" title="Copy as Markdown">
+            <svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/><line x1="9" y1="10" x2="13" y2="10"/><line x1="9" y1="13" x2="13" y2="13"/></svg>
+          </button>
+          <div class="qa-divider"></div>
+          <!-- Highlight -->
+          <button class="qa-btn" title="Highlight">
+            <svg viewBox="0 0 20 20"><path d="M13.5 3.5l3 3-8 8H5.5v-3z"/><path d="M11 6l3 3"/><path d="M4 17h12"/></svg>
+          </button>
+          <!-- Bookmark -->
+          <button class="qa-btn" title="Bookmark">
+            <svg viewBox="0 0 20 20"><path d="M5 3h10a1 1 0 011 1v14l-5-3-5 3V4a1 1 0 011-1z"/></svg>
+          </button>
+          <div class="qa-divider"></div>
+          <!-- Link -->
+          <button class="qa-btn" title="Copy link to section">
+            <svg viewBox="0 0 20 20"><path d="M8 12l4-4"/><path d="M11.5 14.5a3.5 3.5 0 01-5 0l-1-1a3.5 3.5 0 010-5l1-1"/><path d="M8.5 5.5a3.5 3.5 0 015 0l1 1a3.5 3.5 0 010 5l-1 1"/></svg>
+          </button>
+          <!-- AI -->
+          <button class="qa-btn" title="Ask AI">
+            <svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/><path d="M15 13l.8 2.2L18 16l-2.2.8L15 19l-.8-2.2L12 16l2.2-.8z" opacity="0.5"/></svg>
+          </button>
+        </div>
+        <div class="demo-text">
+          The platform is built as a set of loosely coupled services that <span class="selected">communicate through well defined interfaces</span>. Each service owns its data and exposes a clear contract to its consumers.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 5. FOCUS MODE CONTROL                       -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">5. Focus Mode</div>
+    <p class="section-desc">Document becomes the entire experience. All chrome disappears. Activated via F11, context menu, or floating strip.</p>
+
+    <div class="widget-grid">
+
+      <div class="widget-card">
+        <div class="card-label">Toggle Control</div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="focus-control">
+            <span class="ais-icon">
+              <svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg>
+            </span>
+            <span class="fc-label">Focus Mode</span>
+            <button class="focus-toggle" id="focusToggle"></button>
+          </div>
+          <div style="font-size:11px;color:var(--text-ghost);display:flex;align-items:center;gap:8px;">
+            <kbd style="font-family:'JetBrains Mono';font-size:10px;padding:2px 8px;background:var(--hover-bg);border:1px solid var(--border);border-radius:4px;">F11</kbd>
+            or
+            <kbd style="font-family:'JetBrains Mono';font-size:10px;padding:2px 8px;background:var(--hover-bg);border:1px solid var(--border);border-radius:4px;">Esc</kbd>
+            to exit
+          </div>
+        </div>
+      </div>
+
+      <div class="widget-card">
+        <div class="card-label">Floating Strip — bottom of screen in focus mode</div>
+        <div style="display:flex;justify-content:center;padding:16px 0;">
+          <div class="focus-strip">
+            <button class="fs-btn" title="Exit focus mode">
+              <svg viewBox="0 0 20 20"><path d="M7 3H4a1 1 0 00-1 1v3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M3 13v3a1 1 0 001 1h3"/><path d="M7 7L3 3"/><path d="M13 7l4-4"/><path d="M7 13l-4 4"/><path d="M13 13l4 4"/></svg>
+            </button>
+            <button class="fs-btn" title="Zoom out">
+              <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/></svg>
+            </button>
+            <button class="fs-btn active" title="Zoom level">
+              <svg viewBox="0 0 20 20" style="stroke:none;fill:var(--accent-text);font-family:'JetBrains Mono';font-size:11px;"><text x="10" y="14" text-anchor="middle" font-size="9" font-family="JetBrains Mono" fill="var(--accent-text)">100</text></svg>
+            </button>
+            <button class="fs-btn" title="Zoom in">
+              <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg>
+            </button>
+            <button class="fs-btn" title="Theme toggle">
+              <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity="0.15"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 6. SEARCH / COMMAND PALETTE                 -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">6. Search & Command Palette</div>
+    <p class="section-desc">Ctrl+K opens. Tabs: All, Documents, Headings, Commands. Fuzzy matching. Speed over complexity.</p>
+
+    <div class="widget-grid">
+
+      <div class="widget-card" style="grid-column: 1 / -1; display:flex; justify-content:center;">
+        <div class="search-panel">
+          <div class="search-input-row">
+            <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg>
+            <input type="text" placeholder="Search commands, documents, or headings..." value="system des" />
+            <span class="search-kbd">esc</span>
+          </div>
+          <div class="search-tabs">
+            <div class="search-tab active">All</div>
+            <div class="search-tab">Documents</div>
+            <div class="search-tab">Headings</div>
+            <div class="search-tab">Commands</div>
+          </div>
+          <div class="search-results">
+            <div class="search-result selected">
+              <svg viewBox="0 0 20 20"><path d="M6 2h6l4 4v12a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M12 2v4h4"/></svg>
+              <div class="sr-info">
+                <div class="sr-title"><strong>system-des</strong>ign.md</div>
+                <div class="sr-path">architecture / system-design.md</div>
+              </div>
+            </div>
+            <div class="search-result">
+              <svg viewBox="0 0 20 20"><line x1="4" y1="5" x2="16" y2="5"/><line x1="7" y1="9" x2="16" y2="9"/><line x1="7" y1="13" x2="16" y2="13"/></svg>
+              <div class="sr-info">
+                <div class="sr-title">1. Overview — <strong>System Des</strong>ign</div>
+                <div class="sr-path">Heading in system-design.md</div>
+              </div>
+            </div>
+            <div class="search-result">
+              <svg viewBox="0 0 20 20"><path d="M6 2h6l4 4v12a1 1 0 01-1 1H6a1 1 0 01-1-1V3a1 1 0 011-1z"/><path d="M12 2v4h4"/></svg>
+              <div class="sr-info">
+                <div class="sr-title"><strong>system-des</strong>cription.md</div>
+                <div class="sr-path">product / system-description.md</div>
+              </div>
+            </div>
+          </div>
+          <div class="search-footer">
+            <span><kbd>&uarr;&darr;</kbd> navigate</span>
+            <span><kbd>&crarr;</kbd> open</span>
+            <span><kbd>Ctrl &crarr;</kbd> new tab</span>
+            <span><kbd>esc</kbd> close</span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 7. EDGE ZONES & STREAMING                   -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">7. Edge Zones & Streaming Indicators</div>
+    <p class="section-desc">24px activation zones on left/right edges. Streaming state shown via subtle border pulse — no spinners.</p>
+
+    <div class="widget-grid">
+
+      <div class="widget-card">
+        <div class="card-label">Edge Activation Zones (24px)</div>
+        <div class="edge-demo">
+          <div class="edge-zone left"><div class="edge-line"></div></div>
+          <div class="edge-zone right"><div class="edge-line"></div></div>
+          <div class="edge-label">
+            Hover edges to reveal
+            <span>Navigation (left) &middot; Outline (right)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="widget-card">
+        <div class="card-label">Streaming States</div>
+        <div class="stream-demos">
+          <div class="stream-demo-row">
+            <span class="stream-demo-label" style="color:var(--accent-text);">Streaming</span>
+            <div class="stream-bar active"></div>
+          </div>
+          <div class="stream-demo-row">
+            <span class="stream-demo-label">Complete</span>
+            <div class="stream-bar complete"></div>
+          </div>
+          <div class="stream-demo-row">
+            <span class="stream-demo-label" style="color:var(--danger);">Error</span>
+            <div class="stream-bar error"></div>
+          </div>
+          <div style="font-size:11px;color:var(--text-ghost);margin-top:4px;">
+            Streaming: subtle pulse on document border (1px accent glow). No spinners. No progress bars.
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 8. TABS, TOASTS, TOOLTIPS                   -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">8. Tabs, Toasts & Tooltips</div>
+
+    <div class="widget-grid">
+
+      <div class="widget-card">
+        <div class="card-label">Tab Strip — contextual, floating</div>
+        <div style="display:flex;flex-direction:column;gap:16px;">
+          <div class="tabs-demo">
+            <div class="tab-item active">
+              system-design.md
+              <span class="tab-close">&times;</span>
+            </div>
+            <div class="tab-item">
+              <span class="pin-dot"></span>
+              runbook.md
+            </div>
+            <div class="tab-item">
+              api-reference.md
+              <span class="tab-close">&times;</span>
+            </div>
+          </div>
+          <div style="font-size:11px;color:var(--text-ghost);">
+            Hidden when single document. Blue dot = pinned (double-click to pin).
+          </div>
+        </div>
+      </div>
+
+      <div class="widget-card">
+        <div class="card-label">Toast Notifications</div>
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="toast success">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><polyline points="7,10 9.5,12.5 13.5,7.5"/></svg>
+            Copied to clipboard
+          </div>
+          <div class="toast info">
+            <svg viewBox="0 0 20 20"><path d="M10 2l1.5 4.5L16 8l-4.5 1.5L10 14l-1.5-4.5L4 8l4.5-1.5z"/></svg>
+            AI content complete — 6 sections generated
+          </div>
+        </div>
+      </div>
+
+      <div class="widget-card">
+        <div class="card-label">Tooltips with keyboard hints</div>
+        <div class="tooltip-demo">
+          <div class="tooltip-anchor">
+            <svg viewBox="0 0 20 20"><path d="M3 7V4a1 1 0 011-1h3"/><path d="M13 3h3a1 1 0 011 1v3"/><path d="M17 13v3a1 1 0 01-1 1h-3"/><path d="M7 17H4a1 1 0 01-1-1v-3"/></svg>
+            <div class="tooltip-bubble">Focus mode<kbd>F11</kbd></div>
+          </div>
+          <div class="tooltip-anchor">
+            <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/></svg>
+            <div class="tooltip-bubble">Search<kbd>Ctrl K</kbd></div>
+          </div>
+          <div class="tooltip-anchor">
+            <svg viewBox="0 0 20 20"><rect x="3" y="3" width="5" height="14" rx="1"/><line x1="11" y1="5" x2="17" y2="5"/><line x1="11" y1="9" x2="17" y2="9"/><line x1="11" y1="13" x2="15" y2="13"/></svg>
+            <div class="tooltip-bubble">Navigation<kbd>Ctrl B</kbd></div>
+          </div>
+          <div class="tooltip-anchor">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity="0.15"/></svg>
+            <div class="tooltip-bubble">Toggle theme</div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 9. SETTINGS PANEL                           -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">9. Settings Panel</div>
+    <p class="section-desc">Floating glass overlay. Minimal rows. Follows zero-presence — disappears on click outside or Esc.</p>
+
+    <div class="widget-grid">
+
+      <div class="widget-card" style="display:flex;justify-content:center;">
+        <div class="settings-panel">
+          <div class="sp-title">
+            <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg>
+            Appearance
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">
+              <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity="0.15"/></svg>
+              Theme
+            </span>
+            <div class="theme-selector">
+              <button class="theme-option">Light</button>
+              <button class="theme-option active">Dark</button>
+              <button class="theme-option">System</button>
+            </div>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">
+              <svg viewBox="0 0 20 20" style="width:16px;height:16px"><path d="M4 16V6h2v10zm5 0V4h2v12zm5 0V8h2v8z"/></svg>
+              Font
+            </span>
+            <span class="setting-value">Inter <span class="setting-chevron">&#x203A;</span></span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">
+              <svg viewBox="0 0 20 20" style="width:16px;height:16px"><text x="3" y="15" font-size="13" font-weight="600" fill="var(--text-tertiary)" font-family="Inter" stroke="none">A</text><text x="13" y="15" font-size="8" fill="var(--text-ghost)" font-family="Inter" stroke="none">A</text></svg>
+              Font Size
+            </span>
+            <span class="setting-value">16px <span class="setting-chevron">&#x203A;</span></span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">
+              <svg viewBox="0 0 20 20" style="width:16px;height:16px"><line x1="3" y1="5" x2="17" y2="5"/><line x1="3" y1="10" x2="17" y2="10"/><line x1="3" y1="15" x2="17" y2="15"/></svg>
+              Line Height
+            </span>
+            <span class="setting-value">1.75 <span class="setting-chevron">&#x203A;</span></span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">
+              <svg viewBox="0 0 20 20" style="width:16px;height:16px"><rect x="3" y="5" width="14" height="10" rx="1"/><line x1="7" y1="5" x2="7" y2="15" opacity="0.3"/><line x1="13" y1="5" x2="13" y2="15" opacity="0.3"/></svg>
+              Reading Width
+            </span>
+            <span class="setting-value">720px <span class="setting-chevron">&#x203A;</span></span>
+          </div>
+          <div class="setting-row">
+            <span class="setting-label">
+              <svg viewBox="0 0 20 20" style="width:16px;height:16px"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4" opacity="0.3"/></svg>
+              Opacity
+            </span>
+            <span class="setting-value">80% <span class="setting-chevron">&#x203A;</span></span>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ═══════════════════════════════════════════ -->
+  <!-- 10. CODE BLOCK FOLDING                      -->
+  <!-- ═══════════════════════════════════════════ -->
+  <div class="section">
+    <div class="section-title">10. Code Block Folding</div>
+    <p class="section-desc">Blocks over 25 lines collapse by default. First 5 + last 2 lines visible. Click indicator to expand.</p>
+
+    <div class="widget-card wide">
+      <div class="card-label">Collapsed Code Block (&gt;25 lines)</div>
+      <div style="background:var(--code-bg);border:1px solid var(--code-border);border-radius:12px;overflow:hidden;font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--text-secondary);">
+        <div style="padding:4px 16px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid var(--border);">
+          <span style="font-size:11px;color:var(--text-tertiary);text-transform:uppercase;letter-spacing:0.05em;">go</span>
+          <button class="qa-btn" title="Copy code" style="width:28px;height:28px;">
+            <svg viewBox="0 0 20 20" style="width:14px;height:14px"><rect x="6" y="6" width="10" height="11" rx="1"/><path d="M4 14V4a1 1 0 011-1h8"/></svg>
+          </button>
+        </div>
+        <div style="padding:12px 16px;line-height:1.6;">
+          <div><span style="color:#C792EA">func</span> (s *<span style="color:#FFCB6B">Service</span>) <span style="color:#82AAFF">HandleRequest</span>(ctx <span style="color:#FFCB6B">context.Context</span>) {</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;span := <span style="color:#82AAFF">trace.Start</span>(ctx, <span style="color:#C3E88D">"HandleRequest"</span>)</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#C792EA">defer</span> span.<span style="color:#82AAFF">End</span>()</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;</div>
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;req, err := s.<span style="color:#82AAFF">parseRequest</span>(ctx)</div>
+        </div>
+        <div style="padding:10px 16px;display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;background:var(--hover-bg);border-top:1px solid var(--border);border-bottom:1px solid var(--border);font-size:12px;color:var(--text-tertiary);transition:background 0.12s;" onmouseover="this.style.background='var(--active-bg)';this.style.color='var(--accent-text)'" onmouseout="this.style.background='var(--hover-bg)';this.style.color='var(--text-tertiary)'">
+          <svg width="14" height="14" viewBox="0 0 20 20" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" fill="none"><polyline points="6,8 10,12 14,8"/></svg>
+          47 more lines
+        </div>
+        <div style="padding:12px 16px;line-height:1.6;">
+          <div>&nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#C792EA">return</span> response, <span style="color:#C792EA">nil</span></div>
+          <div>}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /page -->
+
+<script>
+  // Theme toggle
+  document.getElementById('themeToggle').addEventListener('click', () => {
+    document.body.classList.toggle('light');
+  });
+
+  // Zoom controls
+  let zoom = 100;
+  const zoomVal = document.getElementById('zoomValue');
+  document.getElementById('zoomIn').addEventListener('click', () => {
+    zoom = Math.min(200, zoom + 10);
+    zoomVal.textContent = zoom + '%';
+  });
+  document.getElementById('zoomOut').addEventListener('click', () => {
+    zoom = Math.max(50, zoom - 10);
+    zoomVal.textContent = zoom + '%';
+  });
+
+  // Width slider
+  const widthSlider = document.getElementById('widthSlider');
+  const widthValue = document.getElementById('widthValue');
+  const widthPx = document.getElementById('widthPx');
+  widthSlider.addEventListener('input', () => {
+    const v = widthSlider.value;
+    widthValue.textContent = v + '%';
+    const px = Math.round(720 + (1000 - 720) * ((v - 60) / (95 - 60)));
+    widthPx.textContent = Math.min(1000, Math.max(720, px)) + 'px';
+  });
+
+  // Opacity controls
+  let opacity = 80;
+  const opVal = document.getElementById('opacityValue');
+  document.getElementById('opacityUp').addEventListener('click', () => {
+    opacity = Math.min(100, opacity + 10);
+    opVal.textContent = opacity + '%';
+  });
+  document.getElementById('opacityDown').addEventListener('click', () => {
+    opacity = Math.max(50, opacity - 10);
+    opVal.textContent = opacity + '%';
+  });
+
+  // Focus toggle
+  document.getElementById('focusToggle').addEventListener('click', function() {
+    this.classList.toggle('active');
+  });
+</script>
+</body>
+</html>
