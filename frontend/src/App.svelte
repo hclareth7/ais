@@ -42,6 +42,10 @@
   }
 
   onMount(async () => {
+    if (navigator.platform.startsWith('Mac')) {
+      document.documentElement.classList.add('macos');
+    }
+
     await loadSettings();
     await loadFileTree();
 
