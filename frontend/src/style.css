@@ -223,6 +223,11 @@ body {
   overflow: hidden;
 }
 
+.macos .reader {
+  border-radius: 0;
+  border: none;
+}
+
 /* ── Titlebar ── */
 .titlebar {
   display: flex;
