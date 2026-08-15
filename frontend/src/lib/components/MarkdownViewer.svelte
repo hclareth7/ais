@@ -84,7 +84,6 @@
     flex: 1;
     overflow-y: auto;
     overflow-x: hidden;
-    padding: 36px 0 80px;
     display: flex;
     justify-content: center;
     scrollbar-width: thin;
@@ -95,7 +94,7 @@
   .doc-inner {
     width: 100%;
     max-width: var(--reading-max-width);
-    padding: 0 32px;
+    padding: 36px 32px 140px;
     line-height: 1.75;
     color: var(--text-primary);
     font-size: 16px;

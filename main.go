@@ -15,6 +15,9 @@ import (
 //go:embed all:frontend/dist
 var assets embed.FS
 
+//go:embed build/appicon.png
+var appIcon []byte
+
 var version = "dev"
 
 func main() {
@@ -69,7 +72,9 @@ func main() {
 		},
 		BackgroundColour: &options.RGBA{R: 0, G: 0, B: 0, A: 0},
 		Linux: &linux.Options{
+			Icon:                appIcon,
 			WindowIsTranslucent: true,
+			ProgramName:         "ais",
 		},
 		OnStartup: app.startup,
 		OnShutdown:       app.shutdown,

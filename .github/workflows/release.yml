@@ -1,0 +1,87 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux/amd64
+            artifact: ais-linux-amd64
+          - os: macos-latest
+            platform: darwin/universal
+            artifact: ais-macos-universal
+          - os: windows-latest
+            platform: windows/amd64
+            artifact: ais-windows-amd64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Wails CLI
+        run: go install github.com/wailsapp/wails/v2/cmd/wails@v2.14.0
+
+      - name: Install Linux dependencies
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libgtk-3-dev libwebkit2gtk-4.1-dev
+
+      - name: Build
+        run: wails build -platform ${{ matrix.platform }} -ldflags "-X main.version=${{ github.ref_name }}"
+
+      - name: Package (Linux)
+        if: matrix.os == 'ubuntu-latest'
+        run: tar czf ${{ matrix.artifact }}.tar.gz -C build/bin ais
+
+      - name: Package (macOS)
+        if: matrix.os == 'macos-latest'
+        run: cd build/bin && zip -r ../../${{ matrix.artifact }}.zip ais.app
+
+      - name: Package (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: Compress-Archive -Path build/bin/ais.exe -DestinationPath ${{ matrix.artifact }}.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ${{ matrix.artifact }}.*
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Download artifacts
+        uses: actions/download-artifact@v4
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: |
+            ais-linux-amd64/*.tar.gz
+            ais-macos-universal/*.zip
+            ais-windows-amd64/*.zip
