@@ -38,67 +38,34 @@ Point it at a folder, read your docs.
 - Live reload — edits to markdown files appear instantly via filesystem watcher
 - Safe — path traversal protection, HTML disabled in markdown rendering, 10MB file size limit
 
-## Quick Start
+## Install
 
-### Prerequisites
+Download the latest binary from [Releases](https://github.com/hclareth7/ais/releases/latest):
 
-- Go 1.25+
-- Node.js 18+
-- Wails CLI v2: `go install github.com/wailsapp/wails/v2/cmd/wails@latest`
-- Linux: `gtk3-devel` and `webkit2gtk4.1-devel`
-
-### Build and Run
+| Platform | File |
+|----------|------|
+| Linux | `ais-linux-amd64.tar.gz` |
+| macOS | `ais-macos-universal.zip` |
+| Windows | `ais-windows-amd64.zip` |
 
 ```bash
-git clone https://github.com/hclareth7/ais.git
-cd ais
-
-cd frontend && npm install --legacy-peer-deps && cd ..
-
-# Development mode (hot reload)
-wails dev
-
-# Production build
-wails build
-./build/bin/ais
+# Linux example
+tar xzf ais-linux-amd64.tar.gz
+sudo mv ais /usr/local/bin/
 ```
+
+See [docs/install.md](docs/install.md) for platform-specific instructions.
 
 ## Usage
 
 ```bash
+cd ~/my-project
 ais .               # Open current directory
 ais /path/to/docs   # Open a specific path
 ais --version       # Print version
 ```
 
-The `--mcp` flag is reserved for future MCP server mode.
-
-## Keyboard Shortcuts
-
-| Shortcut | Action |
-|----------|--------|
-| `Ctrl+B` | Toggle navigation panel |
-| `Ctrl+K` | Command palette |
-| `Ctrl+Shift+O` | Toggle outline / table of contents |
-| `Ctrl+Tab` | Next tab |
-| `Ctrl+Shift+Tab` | Previous tab |
-| `Ctrl+W` | Close current tab |
-| `Ctrl+Shift+T` | Reopen closed tab |
-| `F11` | Focus mode (document only) |
-| `Escape` | Close any open panel |
-| Click heading | Collapse/expand section |
-
-## Configuration
-
-Settings stored at `~/.config/ais/config.json`:
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `theme` | `"system"` | `"light"`, `"dark"`, or `"system"` |
-| `fontSize` | `16` | Base font size in pixels |
-| `sidebarWidth` | `260` | Sidebar width in pixels |
-| `ignoreDirs` | `.git`, `node_modules`, ... | Directories to skip when scanning |
-| `recentPaths` | `[]` | Last 10 opened folders |
+See [docs/usage.md](docs/usage.md) for the full guide — keyboard shortcuts, hover zones, focus mode, configuration.
 
 ## Tech Stack
 
@@ -128,19 +95,12 @@ The product vision lives in `spec/Design.md` with reference mockups in `spec/moc
 ## Roadmap
 
 - [ ] MCP server mode — expose markdown reading as an MCP resource for LLMs
-- [ ] Hover-reveal navigation — left edge reveals file tree, right edge reveals outline
-- [ ] Command palette (`Ctrl+K`) — search, navigate, settings
-- [ ] Outline panel — document structure via right-edge hover
 - [ ] Workspaces / Spaces — group documents by context
-- [ ] Focus mode (`F11`) — document only, all chrome hidden
-- [ ] Glass surfaces — translucent panels with backdrop blur
-- [ ] Settings overlay — appearance, font, line height
 - [ ] Reading time indicator
 - [ ] Quick actions — hover toolbar on text selection
 - [ ] AI streaming — progressive paragraph-by-paragraph rendering
 - [ ] Side-by-side comparison (`Ctrl+\`)
 - [ ] Code block folding — auto-collapse blocks >25 lines
-- [ ] SSH key support — clone and browse remote repositories
 - [ ] Git clone integration — open repos by URL
 
 ## License
