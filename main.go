@@ -1,11 +1,13 @@
 package main
 
 import (
+	"context"
 	"embed"
 	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/hclareth7/ais/internal/platform"
 	"github.com/wailsapp/wails/v2"
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
@@ -92,7 +94,10 @@ func main() {
 			WindowIsTranslucent:  true,
 		},
 		OnStartup: app.startup,
-		OnShutdown:       app.shutdown,
+		OnDomReady: func(_ context.Context) {
+			platform.ConfigureWindow(20)
+		},
+		OnShutdown: app.shutdown,
 		Bind: []interface{}{
 			app,
 		},

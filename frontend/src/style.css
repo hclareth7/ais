@@ -418,21 +418,36 @@ body {
 }
 
 /* ── Scrollbar ── */
-:not(.macos) ::-webkit-scrollbar {
+::-webkit-scrollbar {
   width: 6px;
 }
 
-:not(.macos) ::-webkit-scrollbar-track {
+::-webkit-scrollbar-track {
   background: transparent;
 }
 
-:not(.macos) ::-webkit-scrollbar-thumb {
+::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
-:not(.macos) ::-webkit-scrollbar-thumb:hover {
+::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
+}
+
+.macos ::-webkit-scrollbar {
+  width: 10px;
+}
+
+.macos ::-webkit-scrollbar-thumb {
+  border-radius: 5px;
+  border: 3px solid transparent;
+  background-clip: padding-box;
+}
+
+.macos ::-webkit-scrollbar-thumb:hover {
+  border: 3px solid transparent;
+  background-clip: padding-box;
 }
 
 /* ── Selection ── */
