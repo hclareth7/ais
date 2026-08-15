@@ -12,6 +12,7 @@
 
   --surface: rgba(18, 20, 24, 0.75);
   --surface-solid: #121418;
+  --surface-solid-rgb: 18, 20, 24;
   --surface-elevated: rgba(24, 27, 32, 0.92);
   --surface-opacity: 0.75;
 
@@ -69,6 +70,7 @@
 
   --surface: rgba(255, 255, 255, 0.78);
   --surface-solid: #FFFFFF;
+  --surface-solid-rgb: 255, 255, 255;
   --surface-elevated: rgba(255, 255, 255, 0.95);
   --surface-opacity: 0.78;
 
@@ -212,7 +214,7 @@ body {
 .reader {
   position: fixed;
   inset: 0;
-  background: var(--surface-solid);
+  background: rgba(var(--surface-solid-rgb), var(--surface-opacity));
   border-radius: var(--reader-radius);
   border: 1px solid var(--border);
   z-index: 10;

@@ -10,6 +10,8 @@ import (
 	"github.com/wailsapp/wails/v2/pkg/options"
 	"github.com/wailsapp/wails/v2/pkg/options/assetserver"
 	"github.com/wailsapp/wails/v2/pkg/options/linux"
+	"github.com/wailsapp/wails/v2/pkg/options/mac"
+	"github.com/wailsapp/wails/v2/pkg/options/windows"
 )
 
 //go:embed all:frontend/dist
@@ -75,6 +77,19 @@ func main() {
 			Icon:                appIcon,
 			WindowIsTranslucent: true,
 			ProgramName:         "ais",
+		},
+		Mac: &mac.Options{
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
+			About: &mac.AboutInfo{
+				Title:   "ais",
+				Message: "Ambient Intuition — markdown reading surface",
+				Icon:    appIcon,
+			},
+		},
+		Windows: &windows.Options{
+			WebviewIsTransparent: true,
+			WindowIsTranslucent:  true,
 		},
 		OnStartup: app.startup,
 		OnShutdown:       app.shutdown,
