@@ -15,6 +15,8 @@ export function OpenFolder():Promise<string>;
 
 export function ReadFile(arg1:string):Promise<string>;
 
+export function SetCornerRadius(arg1:number):Promise<void>;
+
 export function SetRootPath(arg1:string):Promise<void>;
 
 export function SetTheme(arg1:string):Promise<void>;

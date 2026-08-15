@@ -59,6 +59,9 @@ function applyOpacity(): void {
 export function setReaderRadius(px: number): void {
   readerRadius.set(px);
   document.documentElement.style.setProperty('--reader-radius', `${px}px`);
+  if (document.documentElement.classList.contains('macos')) {
+    import('../../../wailsjs/go/main/App').then(m => m.SetCornerRadius(px)).catch(() => {});
+  }
 }
 
 export function setBackgroundMode(mode: 'gradient' | 'solid' | 'frost'): void {
