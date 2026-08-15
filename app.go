@@ -159,5 +159,5 @@ func (a *App) SetTheme(theme string) error {
 }
 
 func (a *App) SetCornerRadius(radius float64) {
-	platform.ConfigureWindow(radius)
+	platform.UpdateCornerRadius(radius)
 }
