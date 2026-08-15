@@ -26,6 +26,10 @@ export function ReadFile(arg1) {
   return window['go']['main']['App']['ReadFile'](arg1);
 }
 
+export function SetCornerRadius(arg1) {
+  return window['go']['main']['App']['SetCornerRadius'](arg1);
+}
+
 export function SetRootPath(arg1) {
   return window['go']['main']['App']['SetRootPath'](arg1);
 }

@@ -14,13 +14,35 @@ void configureWindowAppearance(double cornerRadius) {
 		if (!window) {
 			window = [NSApp keyWindow];
 		}
-		if (window) {
-			[window setOpaque:NO];
-			[window setBackgroundColor:[NSColor clearColor]];
-			NSView *contentView = [window contentView];
-			[contentView setWantsLayer:YES];
-			contentView.layer.cornerRadius = cornerRadius;
-			contentView.layer.masksToBounds = YES;
+		if (!window) return;
+
+		// Hide native traffic light buttons
+		[[window standardWindowButton:NSWindowCloseButton] setHidden:YES];
+		[[window standardWindowButton:NSWindowMiniaturizeButton] setHidden:YES];
+		[[window standardWindowButton:NSWindowZoomButton] setHidden:YES];
+
+		[window setOpaque:NO];
+		[window setBackgroundColor:[NSColor clearColor]];
+
+		// Set corner radius on the theme frame (window chrome)
+		NSView *contentView = [window contentView];
+		NSView *themeFrame = [contentView superview];
+		if (themeFrame) {
+			[themeFrame setWantsLayer:YES];
+			themeFrame.layer.cornerRadius = cornerRadius;
+			themeFrame.layer.masksToBounds = YES;
+		}
+
+		// Set corner radius on content view
+		[contentView setWantsLayer:YES];
+		contentView.layer.cornerRadius = cornerRadius;
+		contentView.layer.masksToBounds = YES;
+
+		// Set corner radius on all subviews (NSVisualEffectView, WKWebView, etc.)
+		for (NSView *subview in [contentView subviews]) {
+			[subview setWantsLayer:YES];
+			subview.layer.cornerRadius = cornerRadius;
+			subview.layer.masksToBounds = YES;
 		}
 	});
 }

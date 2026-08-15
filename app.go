@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/hclareth7/ais/internal/config"
+	"github.com/hclareth7/ais/internal/platform"
 	"github.com/hclareth7/ais/internal/scanner"
 	"github.com/hclareth7/ais/internal/types"
 	"github.com/hclareth7/ais/internal/watcher"
@@ -155,4 +156,8 @@ func (a *App) SetTheme(theme string) error {
 		c.Theme = theme
 	})
 	return a.cfgMgr.Save()
+}
+
+func (a *App) SetCornerRadius(radius float64) {
+	platform.ConfigureWindow(radius)
 }
