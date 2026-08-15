@@ -396,6 +396,15 @@ body {
   transition: opacity 0.12s, transform 0.12s;
 }
 
+.toc-trigger:hover ~ .toc-panel,
+.toc-panel:hover,
+.toc-panel.vis {
+  opacity: 1;
+  transform: translateX(0);
+  pointer-events: auto;
+  transition: opacity 0.12s, transform 0.12s;
+}
+
 /* ── Bottom Trigger Zone ── */
 .bottom-trigger {
   position: absolute;

@@ -102,7 +102,6 @@
     }
   }
 
-  :global(.toc-trigger:hover) + .toc-panel,
   .toc-panel:hover,
   .toc-panel.vis {
     opacity: 1;

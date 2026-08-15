@@ -4,7 +4,7 @@ const ZOOM_LEVELS = [50, 75, 90, 100, 110, 125, 150, 175, 200];
 const RADIUS_OPTIONS = [20, 28, 36, 48];
 
 export const zoomLevel = writable(100);
-export const readingWidth = writable(720);
+export const readingWidth = writable(1000);
 export const focusMode = writable(false);
 export const commandPaletteOpen = writable(false);
 export const opacity = writable(75);

@@ -82,8 +82,7 @@
   }
 
   :global(.bottom-trigger:hover ~ .controls),
-  .controls:hover,
-  :global(.reader.focus) .controls {
+  .controls:hover {
     opacity: 1;
     pointer-events: auto;
   }
