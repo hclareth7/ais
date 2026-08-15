@@ -418,20 +418,20 @@ body {
 }
 
 /* ── Scrollbar ── */
-::-webkit-scrollbar {
+:not(.macos) ::-webkit-scrollbar {
   width: 6px;
 }
 
-::-webkit-scrollbar-track {
+:not(.macos) ::-webkit-scrollbar-track {
   background: transparent;
 }
 
-::-webkit-scrollbar-thumb {
+:not(.macos) ::-webkit-scrollbar-thumb {
   background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
+:not(.macos) ::-webkit-scrollbar-thumb:hover {
   background: var(--border-hover);
 }
 
