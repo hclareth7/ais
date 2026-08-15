@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 
 	"github.com/hclareth7/ais/internal/platform"
 	"github.com/wailsapp/wails/v2"
@@ -70,7 +71,7 @@ func main() {
 		Height:    800,
 		MinWidth:  600,
 		MinHeight: 400,
-		Frameless: true,
+		Frameless: runtime.GOOS != "darwin",
 		AssetServer: &assetserver.Options{
 			Assets: assets,
 		},
@@ -81,6 +82,12 @@ func main() {
 			ProgramName:         "ais",
 		},
 		Mac: &mac.Options{
+			TitleBar: &mac.TitleBar{
+				TitlebarAppearsTransparent: true,
+				HideTitle:                  true,
+				HideTitleBar:               false,
+				FullSizeContent:            true,
+			},
 			WebviewIsTransparent: true,
 			WindowIsTranslucent:  true,
 			About: &mac.AboutInfo{
