@@ -92,12 +92,14 @@ func (w *Watcher) Start() error {
 				continue
 			}
 
-			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) || event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
+			isCreate := event.Has(fsnotify.Create)
+			if event.Has(fsnotify.Write) || isCreate || event.Has(fsnotify.Remove) || event.Has(fsnotify.Rename) {
 				mu.Lock()
 				if timer, exists := debounce[event.Name]; exists {
 					timer.Stop()
 				}
 				name := event.Name
+				created := isCreate
 				debounce[event.Name] = time.AfterFunc(100*time.Millisecond, func() {
 					w.stoppedMu.RLock()
 					isStopped := w.stopped
@@ -109,7 +111,11 @@ func (w *Watcher) Start() error {
 					if err != nil {
 						rel = name
 					}
-					w.callback(rel)
+					if created {
+						w.callback("+" + rel)
+					} else {
+						w.callback(rel)
+					}
 					mu.Lock()
 					delete(debounce, name)
 					mu.Unlock()

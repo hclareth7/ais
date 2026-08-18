@@ -40,15 +40,16 @@ const md = new MarkdownIt({
   linkify: true,
   typographer: true,
   highlight: (str: string, lang: string): string => {
+    const copyBtn = `<button class="code-copy-btn" aria-label="Copy code block" title="Copy code"><svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="12" rx="1.5"/><path d="M4 14V4a1.5 1.5 0 011.5-1.5H13"/></svg></button>`;
     if (lang && hljs.getLanguage(lang)) {
       try {
         const result = hljs.highlight(str, { language: lang, ignoreIllegals: true });
         const escapedLang = md.utils.escapeHtml(lang);
-        return `<pre class="code-block"><div class="code-lang">${escapedLang}</div><code class="hljs language-${escapedLang}">${result.value}</code></pre>`;
+        return `<pre class="code-block"><div class="code-lang">${escapedLang}</div>${copyBtn}<code class="hljs language-${escapedLang}">${result.value}</code></pre>`;
       } catch (_) { /* fall through */ }
     }
     const escaped = md.utils.escapeHtml(str);
-    return `<pre class="code-block"><code class="hljs">${escaped}</code></pre>`;
+    return `<pre class="code-block">${copyBtn}<code class="hljs">${escaped}</code></pre>`;
   }
 });
 

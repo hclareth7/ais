@@ -1,8 +1,9 @@
 <script lang="ts">
   import { commandPaletteOpen } from '../stores/ui';
   import { fileTree, type FileNode } from '../stores/files';
-  import { openTab } from '../stores/tabs';
+  import { openTab, activeTab } from '../stores/tabs';
   import { setTheme } from '../stores/settings';
+  import { get } from 'svelte/store';
 
   let query = $state('');
   let inputEl: HTMLInputElement | undefined = $state();
@@ -37,7 +38,19 @@
     return results;
   }
 
+  async function copyDocument() {
+    const tab = get(activeTab);
+    if (!tab) return;
+    try {
+      const { ClipboardSetText } = await import('../../../wailsjs/runtime/runtime');
+      await ClipboardSetText(tab.content);
+    } catch {
+      await navigator.clipboard.writeText(tab.content);
+    }
+  }
+
   const commands: Result[] = [
+    { type: 'command', label: 'Copy document', detail: 'Copy markdown source to clipboard (Ctrl+Shift+C)', action: () => { copyDocument(); close(); } },
     { type: 'command', label: 'Theme: Dark', detail: 'Switch to dark mode', action: () => { setTheme('dark'); close(); } },
     { type: 'command', label: 'Theme: Light', detail: 'Switch to light mode', action: () => { setTheme('light'); close(); } },
     { type: 'command', label: 'Theme: System', detail: 'Follow system preference', action: () => { setTheme('system'); close(); } },

@@ -43,7 +43,11 @@ func (a *App) startup(ctx context.Context) {
 	}
 
 	w, err := watcher.New(a.rootPath, func(path string) {
-		wailsRuntime.EventsEmit(a.ctx, "file:changed", path)
+		if strings.HasPrefix(path, "+") {
+			wailsRuntime.EventsEmit(a.ctx, "file:created", path[1:])
+		} else {
+			wailsRuntime.EventsEmit(a.ctx, "file:changed", path)
+		}
 	})
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "warning: failed to start watcher: %v\n", err)
@@ -125,7 +129,11 @@ func (a *App) SetRootPath(path string) error {
 	})
 
 	w, err := watcher.New(absPath, func(changedPath string) {
-		wailsRuntime.EventsEmit(a.ctx, "file:changed", changedPath)
+		if strings.HasPrefix(changedPath, "+") {
+			wailsRuntime.EventsEmit(a.ctx, "file:created", changedPath[1:])
+		} else {
+			wailsRuntime.EventsEmit(a.ctx, "file:changed", changedPath)
+		}
 	})
 	if err != nil {
 		return fmt.Errorf("failed to start watcher: %w", err)

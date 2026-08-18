@@ -31,8 +31,37 @@
     }
   });
 
+  async function handleCodeCopy(btn: HTMLElement) {
+    const pre = btn.closest('pre.code-block');
+    if (!pre) return;
+    const code = pre.querySelector('code');
+    if (!code) return;
+    const text = code.textContent ?? '';
+    try {
+      const { ClipboardSetText } = await import('../../../wailsjs/runtime/runtime');
+      await ClipboardSetText(text);
+    } catch {
+      await navigator.clipboard.writeText(text);
+    }
+    btn.classList.add('copied');
+    btn.innerHTML = '<svg viewBox="0 0 20 20"><polyline points="4 10 8 14 16 5"/></svg>';
+    setTimeout(() => {
+      btn.classList.remove('copied');
+      btn.innerHTML = '<svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="12" rx="1.5"/><path d="M4 14V4a1.5 1.5 0 011.5-1.5H13"/></svg>';
+    }, 1500);
+  }
+
   function handleContentClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
+
+    const copyBtn = target.closest('.code-copy-btn') as HTMLElement | null;
+    if (copyBtn) {
+      e.preventDefault();
+      e.stopPropagation();
+      handleCodeCopy(copyBtn);
+      return;
+    }
+
     const heading = target.closest('h1, h2, h3, h4, h5, h6');
     if (!heading || !viewerEl) return;
 
@@ -243,6 +272,51 @@
     text-transform: uppercase;
     letter-spacing: 0.05em;
     pointer-events: none;
+  }
+
+  .doc-inner :global(.code-copy-btn) {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: var(--hover-bg);
+    border-radius: 6px;
+    cursor: pointer;
+    opacity: 0;
+    transition: opacity 0.15s, background 0.12s;
+    z-index: 2;
+    padding: 0;
+  }
+
+  .doc-inner :global(pre.code-block:hover .code-copy-btn) {
+    opacity: 1;
+  }
+
+  .doc-inner :global(.code-copy-btn:hover) {
+    background: var(--active-bg);
+  }
+
+  .doc-inner :global(.code-copy-btn svg) {
+    width: 14px;
+    height: 14px;
+    stroke: var(--text-secondary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .doc-inner :global(.code-copy-btn.copied svg) {
+    stroke: var(--accent-text);
+  }
+
+  .doc-inner :global(pre.code-block:hover .code-lang) {
+    opacity: 0;
   }
 
   .doc-inner :global(pre.code-block code) {

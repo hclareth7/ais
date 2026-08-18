@@ -60,6 +60,11 @@
           }
         }
       });
+      EventsOn('file:created', async (createdPath: string) => {
+        const filename = createdPath.split('/').pop() ?? createdPath;
+        openTab(createdPath, filename);
+        await loadFileTree();
+      });
     } catch (err) {
       console.warn('Wails runtime not available (dev mode):', err);
     }
@@ -72,6 +77,17 @@
       }
 
       if (get(commandPaletteOpen)) return;
+
+      if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
+        e.preventDefault();
+        const tab = get(activeTab);
+        if (tab) {
+          import('../wailsjs/runtime/runtime')
+            .then(r => r.ClipboardSetText(tab.content))
+            .catch(() => navigator.clipboard.writeText(tab.content));
+        }
+        return;
+      }
 
       if (e.ctrlKey && e.key === 'b') {
         e.preventDefault();

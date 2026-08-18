@@ -1,6 +1,10 @@
 <script lang="ts">
   import { zoomLevel, zoomIn, zoomOut, resetZoom, readingWidth, toggleFocusMode, focusMode, toggleSettings } from '../stores/ui';
   import { theme, setTheme, type ThemeMode } from '../stores/settings';
+  import { activeTab } from '../stores/tabs';
+
+  let copied = $state(false);
+  let copyTimer: ReturnType<typeof setTimeout> | null = $state(null);
 
   function cycleTheme() {
     const modes: ThemeMode[] = ['system', 'light', 'dark'];
@@ -16,6 +20,21 @@
 
   function widenWidth() {
     readingWidth.update(w => Math.min(1000, w + 40));
+  }
+
+  async function copyDocument() {
+    const tab = $activeTab;
+    if (!tab) return;
+    try {
+      const { ClipboardSetText } = await import('../../../wailsjs/runtime/runtime');
+      await ClipboardSetText(tab.content);
+    } catch {
+      // Fallback for dev mode
+      await navigator.clipboard.writeText(tab.content);
+    }
+    copied = true;
+    if (copyTimer) clearTimeout(copyTimer);
+    copyTimer = setTimeout(() => { copied = false; }, 1500);
   }
 </script>
 
@@ -53,6 +72,16 @@
   <button class="cb" onclick={cycleTheme} aria-label="Toggle theme" title="Theme: {$theme}">
     <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7"/><path d="M10 3a7 7 0 000 14" fill="var(--icon-stroke)" opacity=".15"/></svg>
   </button>
+
+  <button class="cb" onclick={copyDocument} disabled={!$activeTab} aria-label="Copy document to clipboard" title="Copy document">
+    {#if copied}
+      <svg viewBox="0 0 20 20"><polyline points="4 10 8 14 16 5"/></svg>
+    {:else}
+      <svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="12" rx="1.5"/><path d="M4 14V4a1.5 1.5 0 011.5-1.5H13"/></svg>
+    {/if}
+  </button>
+
+  <div class="cb-div" aria-hidden="true"></div>
 
   <button class="cb" onclick={toggleSettings} aria-label="Open settings panel" title="Settings">
     <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="2.5"/><path d="M10 2v2m0 12v2M3.5 5l1.5 1m10 8l1.5 1M2 10h2m12 0h2M3.5 15l1.5-1m10-8l1.5-1"/></svg>
@@ -100,8 +129,13 @@
     transition: background 0.12s;
   }
 
-  .cb:hover {
+  .cb:hover:not(:disabled) {
     background: var(--hover-bg);
+  }
+
+  .cb:disabled {
+    opacity: 0.35;
+    cursor: default;
   }
 
   .cb.on {
