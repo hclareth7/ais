@@ -23,18 +23,27 @@ For single-domain tasks (pure code, pure architecture, pure UI), invoke the spec
 
 ```
 main.go              CLI arg parsing, Wails app bootstrap, embeds frontend/dist
-app.go               App struct with 9 Wails-bound methods (GetFileTree, ReadFile, SetRootPath, etc.)
+app.go               App struct with 16 Wails-bound methods (GetFileTree, ReadFile, StartStream, etc.)
 internal/
   config/
     config.go        Config struct + Manager with sync.RWMutex, loads/saves ~/.config/ais/config.json
     defaults.go      DefaultConfig: theme "system", fontSize 16, sidebarWidth 260
+  llm/
+    client.go        Claude API streaming client with 50ms token batching (anthropic-sdk-go)
+    client_test.go   29 tests: SSE mock, cancellation, batching, model selection, keystore
+    keystore.go      API key storage: env > OS keychain (go-keyring) > credentials file (0600)
+    keystore_test.go Tests with HOME isolation
+    types.go         StreamRequest, StreamChunk, StreamError, model constants
+  input/
+    pipe.go          Named pipe (FIFO) reader for CLI output redirection
+    pipe_test.go     7 tests: read, multi-write, cleanup, cancellation
   scanner/
     scanner.go       ScanDirectory (recursive FileNode tree), ReadFileContent (10MB limit)
     scanner_test.go  Table-driven tests for scan and read
   types/
     types.go         FileNode{Name, Path, IsDir, Children}
   watcher/
-    watcher.go       fsnotify watcher with 100ms debounce, recursive dir watching
+    watcher.go       fsnotify watcher with 100ms debounce, WatchEvent struct, recursive dir watching
 ```
 
 ### Frontend (Svelte 5 + Tailwind CSS 4)
@@ -52,15 +61,16 @@ frontend/src/
       MarkdownViewer.svelte     Renders active tab, heading collapse, scroll restore
       ThemeToggle.svelte        Cycles system/light/dark, calls Go SetTheme
       WelcomeScreen.svelte      Shown when no tabs open
-      ControlStrip.svelte       Bottom floating controls (zoom, width, theme, settings)
-      CommandPalette.svelte     Ctrl+K command/document search overlay
+      ControlStrip.svelte       Bottom floating controls (zoom, width, theme, settings, copy, stop)
+      CommandPalette.svelte     Ctrl+K command/document/AI search overlay with prompt textarea
       TocPanel.svelte           Right-edge hover-reveal Table of Contents
-      SettingsPanel.svelte      Appearance settings (theme, opacity, radius, background)
+      SettingsPanel.svelte      Appearance + AI settings (API key, model selector)
     markdown/
-      renderer.ts               markdown-it (html:false), 15 highlight.js languages
+      renderer.ts               markdown-it (html:false), 15 highlight.js languages, code copy buttons
     stores/
       files.ts                  fileTree/rootPath stores, loadFileTree/readFile via Wails bindings
-      tabs.ts                   Tab management: open, close, next, prev, updateContent
+      tabs.ts                   Tab management: open, close, next, prev, updateContent, stream tabs
+      stream.ts                 LLM streaming state: 6-state machine, StreamSession, content accumulation
       settings.ts               Theme store, system preference listener
       ui.ts                     UI state: zoom, readingWidth, focusMode, opacity, radius, background
 ```
@@ -69,11 +79,14 @@ frontend/src/
 
 ```
 spec/
-  Design.md                     Product soul, design principles, visual language, interaction specs
-  Architecture.md               System architecture, packages, data flow, dependencies
+  Design.md                     Product soul, design principles, visual language, LLM streaming specs
+  Architecture.md               System architecture, packages, data flow, dependencies, ADRs
   API.md                        Wails binding contract, methods, events, error handling
   DataModels.md                 Data types, stores, state persistence, cross-boundary contracts
-  Security.md                   Threat model, invariants, mitigations
+  Security.md                   Threat model, invariants, mitigations, API key handling
+  requirements.md               LLM streaming functional/non-functional requirements
+  tasks.md                      Implementation tasks with acceptance criteria
+  ux.md                         LLM streaming UX flows, state machine, accessibility
   mockups/
     ais-mockup.html             Interactive full-app mockup with all interactions and states
     ais-widgets.html            Component inventory: all widget states and variants
@@ -89,8 +102,19 @@ Go methods on `App` are exposed via auto-generated `frontend/wailsjs/go/main/App
 - `OpenFolder()` — native directory picker dialog
 - `GetConfig()` / `UpdateConfig(cfg)` — full config read/write
 - `GetTheme()` / `SetTheme(mode)` — theme preference
+- `StartStream(prompt)` — begins Claude API streaming, emits llm:chunk/done/error events
+- `CancelStream()` — cancels active LLM stream
+- `SetAPIKey(key)` / `HasAPIKey()` / `DeleteAPIKey()` — secure API key management
+- `GetAvailableModels()` — returns supported Claude model list
+- `StartPipe(path)` / `StopPipe()` — named pipe (FIFO) for CLI output redirection
 
-Events: `file:changed` emitted from Go watcher, consumed in `App.svelte` via `EventsOn`.
+Events:
+- `file:changed` — file modified, emitted from watcher
+- `file:created` — new markdown file detected, auto-opens tab
+- `llm:chunk` — batched streaming text (50ms intervals)
+- `llm:done` — stream completed with token count
+- `llm:error` — streaming error with code and message
+- `pipe:data` — data received from named pipe
 
 Wails runtime methods used directly (frameless window controls):
 - `WindowMinimise()` — minimize window
@@ -155,6 +179,10 @@ cd frontend && npm run check # Svelte type checking
 - **File size limit:** scanner enforces 10MB max via `maxFileSize` constant
 - **Concurrent config:** Config Manager uses `sync.RWMutex`. Never access config fields directly — use `Get()` and `Update()`
 - **Skip directories:** Both scanner and watcher skip `.git`, `node_modules`, `vendor`, `.svn`, `__pycache__`, `.venv`
+- **API key isolation:** API keys are NEVER stored in `config.json` (0644). Stored via OS keychain or `credentials.json` (0600). Never logged or included in error messages
+- **API key validation:** `SetAPIKey` validates `sk-ant-` prefix before storage
+- **Generic error messages:** LLM client returns generic errors to frontend, logs details to stderr only
+- **Stream concurrency:** `App.streamMu` mutex guards `streamCancel`. Only one stream at a time. Shutdown cancels active streams
 
 ## Testing
 
@@ -162,7 +190,7 @@ cd frontend && npm run check # Svelte type checking
 go test ./internal/...
 ```
 
-Tests exist for `internal/scanner/`. When adding new internal packages, add tests. Patterns used:
+Tests exist for `internal/scanner/`, `internal/llm/`, and `internal/input/`. When adding new internal packages, add tests. Patterns used:
 - `t.TempDir()` for filesystem tests
 - Helper functions with `t.Helper()`
 - Table-driven subtests where appropriate
