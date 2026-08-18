@@ -7,6 +7,8 @@ export interface Tab {
   path: string;
   content: string;
   scrollPos: number;
+  type: 'file' | 'stream';
+  streamActive?: boolean;
 }
 
 export const tabs = writable<Tab[]>([]);
@@ -29,7 +31,7 @@ export async function openTab(path: string, name: string): Promise<void> {
   const content = await readFile(path);
   const id = path;
 
-  const newTab: Tab = { id, name, path, content, scrollPos: 0 };
+  const newTab: Tab = { id, name, path, content, scrollPos: 0, type: 'file' };
 
   tabs.update(t => {
     if (t.length >= 20) {
@@ -91,5 +93,43 @@ export function updateTabContent(path: string, content: string): void {
 export function saveScrollPos(id: string, pos: number): void {
   tabs.update(t => t.map(tab =>
     tab.id === id ? { ...tab, scrollPos: pos } : tab
+  ));
+}
+
+// Opens a new stream tab for an AI response and returns its ID.
+export function openStreamTab(prompt: string): string {
+  const id = `stream-${Date.now()}`;
+  const name = `AI: ${prompt.slice(0, 30)}${prompt.length > 30 ? '...' : ''}`;
+  const newTab: Tab = {
+    id,
+    name,
+    path: '',
+    content: '',
+    scrollPos: 0,
+    type: 'stream',
+    streamActive: true,
+  };
+
+  tabs.update(t => {
+    if (t.length >= 20) {
+      t = t.slice(1);
+    }
+    return [...t, newTab];
+  });
+  activeTabId.set(id);
+  return id;
+}
+
+// Updates the streamActive flag on a tab.
+export function setStreamActive(id: string, active: boolean): void {
+  tabs.update(t => t.map(tab =>
+    tab.id === id ? { ...tab, streamActive: active } : tab
+  ));
+}
+
+// Updates tab content by tab ID (used for stream tabs where path is empty).
+export function updateTabContentById(id: string, content: string): void {
+  tabs.update(t => t.map(tab =>
+    tab.id === id ? { ...tab, content } : tab
   ));
 }

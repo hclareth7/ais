@@ -19,17 +19,23 @@ var skipDirs = map[string]bool{
 	".venv":        true,
 }
 
+// WatchEvent represents a file system event for a markdown file.
+type WatchEvent struct {
+	Path     string // relative path from root
+	IsCreate bool   // true for newly created files
+}
+
 type Watcher struct {
 	fsWatcher *fsnotify.Watcher
 	root      string
-	callback  func(string)
+	callback  func(WatchEvent)
 	done      chan struct{}
 	once      sync.Once
 	stopped   bool
 	stoppedMu sync.RWMutex
 }
 
-func New(root string, callback func(string)) (*Watcher, error) {
+func New(root string, callback func(WatchEvent)) (*Watcher, error) {
 	fsw, err := fsnotify.NewWatcher()
 	if err != nil {
 		return nil, err
@@ -111,11 +117,7 @@ func (w *Watcher) Start() error {
 					if err != nil {
 						rel = name
 					}
-					if created {
-						w.callback("+" + rel)
-					} else {
-						w.callback(rel)
-					}
+					w.callback(WatchEvent{Path: rel, IsCreate: created})
 					mu.Lock()
 					delete(debounce, name)
 					mu.Unlock()

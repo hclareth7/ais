@@ -20,6 +20,83 @@
     { key: 'frost', label: 'Frost' },
   ];
 
+  // AI Configuration state
+  let apiKeyInput = $state('');
+  let apiKeyConfigured = $state(false);
+  let showApiKey = $state(false);
+  let selectedModel = $state('claude-sonnet-5');
+  let apiKeySaving = $state(false);
+
+  const modelTiers: { id: string; label: string }[] = [
+    { id: 'claude-haiku-4-5', label: 'Haiku' },
+    { id: 'claude-sonnet-5', label: 'Sonnet' },
+    { id: 'claude-opus-5', label: 'Opus' },
+  ];
+
+  // Check API key and load model selection when settings panel opens
+  $effect(() => {
+    if ($settingsOpen) {
+      checkApiKey();
+      loadSelectedModel();
+    }
+  });
+
+  async function checkApiKey() {
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      apiKeyConfigured = await App.HasAPIKey();
+    } catch {
+      apiKeyConfigured = false;
+    }
+  }
+
+  async function loadSelectedModel() {
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      const cfg = await App.GetConfig();
+      if (cfg.selectedModel) {
+        selectedModel = cfg.selectedModel;
+      }
+    } catch { /* use default */ }
+  }
+
+  async function saveApiKey() {
+    if (!apiKeyInput.trim()) return;
+    apiKeySaving = true;
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      await App.SetAPIKey(apiKeyInput.trim());
+      apiKeyConfigured = true;
+      apiKeyInput = '';
+    } catch (err) {
+      console.error('Failed to save API key:', err);
+    }
+    apiKeySaving = false;
+  }
+
+  async function clearApiKey() {
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      await App.DeleteAPIKey();
+      apiKeyConfigured = false;
+      apiKeyInput = '';
+    } catch (err) {
+      console.error('Failed to delete API key:', err);
+    }
+  }
+
+  async function setModel(modelId: string) {
+    selectedModel = modelId;
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      const cfg = await App.GetConfig();
+      cfg.selectedModel = modelId;
+      await App.UpdateConfig(cfg);
+    } catch (err) {
+      console.error('Failed to save model:', err);
+    }
+  }
+
   function handleWidthInput(e: Event) {
     const target = e.target as HTMLInputElement;
     readingWidth.set(parseInt(target.value));
@@ -127,6 +204,78 @@
           >{bg.label}</button>
         {/each}
       </div>
+    </div>
+
+    <div class="settings-divider" aria-hidden="true"></div>
+
+    <div class="sp-title">
+      <svg viewBox="0 0 20 20"><path d="M10 2l1.5 3.5L15 7l-3.5 1.5L10 12l-1.5-3.5L5 7l3.5-1.5z"/><path d="M15 12l1 2 2 1-2 1-1 2-1-2-2-1 2-1z" opacity=".5"/></svg>
+      AI
+      <span
+        class="status-dot"
+        class:configured={apiKeyConfigured}
+        title={apiKeyConfigured ? 'Connected' : 'No API key'}
+      ></span>
+    </div>
+
+    <div class="sr">
+      <span class="sr-label">
+        <svg viewBox="0 0 20 20"><rect x="3" y="9" width="14" height="8" rx="2"/><path d="M6 9V6a4 4 0 018 0v3"/></svg>
+        API Key
+      </span>
+      <div class="api-key-group">
+        {#if apiKeyConfigured && !apiKeyInput}
+          <span class="api-key-status">Configured</span>
+          <button class="api-key-clear" onclick={clearApiKey} title="Remove API key" aria-label="Remove API key">
+            <svg viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>
+          </button>
+        {:else}
+          <input
+            class="api-key-input"
+            type={showApiKey ? 'text' : 'password'}
+            bind:value={apiKeyInput}
+            placeholder="sk-ant-..."
+            autocomplete="off"
+            spellcheck="false"
+            aria-label="Anthropic API key"
+          />
+          <button class="api-key-toggle" onclick={() => showApiKey = !showApiKey} title={showApiKey ? 'Hide key' : 'Show key'} aria-label={showApiKey ? 'Hide API key' : 'Show API key'}>
+            <svg viewBox="0 0 14 14">
+              {#if showApiKey}
+                <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/>
+              {:else}
+                <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/><line x1="2" y1="12" x2="12" y2="2"/>
+              {/if}
+            </svg>
+          </button>
+          <button class="api-key-save" onclick={saveApiKey} disabled={!apiKeyInput.trim() || apiKeySaving} aria-label="Save API key">
+            Save
+          </button>
+        {/if}
+      </div>
+    </div>
+
+    <div class="sr">
+      <span class="sr-label">
+        <svg viewBox="0 0 20 20"><rect x="3" y="3" width="14" height="14" rx="3"/><circle cx="7" cy="10" r="1.5"/><circle cx="13" cy="10" r="1.5"/><path d="M7 7h6"/></svg>
+        Model
+      </span>
+      <div class="model-sel" role="radiogroup" aria-label="Model selection">
+        {#each modelTiers as m (m.id)}
+          <button
+            class="model-opt"
+            class:on={selectedModel === m.id}
+            role="radio"
+            aria-checked={selectedModel === m.id}
+            onclick={() => setModel(m.id)}
+            title={m.id}
+          >{m.label}</button>
+        {/each}
+      </div>
+    </div>
+
+    <div class="ai-help-text">
+      Your API key is stored securely in your OS keychain. It is never saved to the config file.
     </div>
   </div>
 {/if}
@@ -331,5 +480,177 @@
     cursor: pointer;
     border: 0;
     box-shadow: 0 1px 6px rgba(0, 0, 0, 0.3);
+  }
+
+  /* Section divider (Design.md) */
+  .settings-divider {
+    height: 1px;
+    background: var(--border);
+    margin: 12px 0;
+  }
+
+  /* Status dot (Design.md) */
+  .status-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--warning);
+    flex-shrink: 0;
+  }
+
+  .status-dot.configured {
+    background: var(--success);
+  }
+
+  /* API Key group */
+  .api-key-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .api-key-input {
+    width: 140px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.12s;
+  }
+
+  .api-key-input:focus {
+    border-color: var(--border-focus);
+  }
+
+  .api-key-input::placeholder {
+    color: var(--text-ghost);
+  }
+
+  .api-key-toggle {
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+    transition: background 0.12s;
+  }
+
+  .api-key-toggle:hover {
+    background: var(--hover-bg);
+  }
+
+  .api-key-toggle svg {
+    width: 14px;
+    height: 14px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .api-key-save {
+    padding: 4px 10px;
+    font-size: 11px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: var(--accent-dim);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: background 0.12s;
+  }
+
+  .api-key-save:hover:not(:disabled) {
+    background: var(--active-bg);
+  }
+
+  .api-key-save:disabled {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  .api-key-status {
+    font-size: 11px;
+    color: var(--success);
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  .api-key-clear {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+    transition: background 0.12s;
+  }
+
+  .api-key-clear:hover {
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  .api-key-clear svg {
+    width: 10px;
+    height: 10px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    fill: none;
+  }
+
+  .api-key-clear:hover svg {
+    stroke: var(--danger);
+  }
+
+  /* Model selector — reuses theme selector pattern */
+  .model-sel {
+    display: flex;
+    gap: 4px;
+    background: var(--hover-bg);
+    border-radius: 9px;
+    padding: 3px;
+  }
+
+  .model-opt {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    border-radius: 7px;
+    cursor: pointer;
+    border: none;
+    background: 0;
+    font-family: inherit;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .model-opt:hover {
+    color: var(--text-secondary);
+  }
+
+  .model-opt.on {
+    background: var(--surface-solid);
+    color: var(--text-primary);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  }
+
+  .ai-help-text {
+    font-size: 11px;
+    color: var(--text-ghost);
+    padding: 8px 0 0;
+    line-height: 1.4;
   }
 </style>

@@ -576,3 +576,175 @@ When reviewing changes to ais, verify:
 - [ ] No new `os.ReadFile` calls bypass the size check
 - [ ] No secrets are stored in config.json
 - [ ] No new network connections are introduced without explicit design
+- [ ] API key is not stored in config.json
+- [ ] API key is not returned to the frontend (only boolean status)
+- [ ] Credentials file has 0600 permissions
+- [ ] User is informed before first network request to Anthropic API
+
+---
+
+# LLM Streaming — Security Additions
+
+## Network Boundary
+
+ais was previously a fully offline application. The LLM streaming feature introduces the first outbound network connection.
+
+### Connection Target
+
+```
+Endpoint: https://api.anthropic.com/v1/messages
+Protocol: HTTPS (TLS 1.2+, enforced by Anthropic)
+Direction: Outbound only
+Initiated by: User action ("Ask AI" command)
+```
+
+The application never accepts inbound connections. The Wails WebView's local server is not exposed externally.
+
+### User Consent
+
+The user must be informed that prompts are sent to an external API before the first stream. This is achieved by:
+
+1. The API key configuration step in Settings explicitly states "Your prompts will be sent to Anthropic's API"
+2. The "Ask AI" command in the Command Palette is clearly labeled as an AI action
+3. No automatic or background network requests — every API call requires explicit user action
+
+### Data Sent
+
+| Data | Sent | Notes |
+|------|------|-------|
+| User prompt text | Yes | The full prompt is sent to Anthropic |
+| API key | Yes | In the `x-api-key` HTTP header |
+| File content | No | Not in v1 scope |
+| Workspace paths | No | Never sent |
+| Config data | No | Never sent |
+| Telemetry | No | ais does not collect telemetry |
+
+---
+
+## API Key Threat Model
+
+### Threat: API Key Exposure via Config File
+
+**Risk:** High — `config.json` has `0644` permissions (world-readable). If the API key is stored there, any user on the system can read it.
+
+**Mitigation:** The API key is NEVER stored in `config.json`. It is stored in:
+
+1. OS keychain (encrypted, OS-managed access control)
+2. Fallback: `~/.config/ais/credentials.json` with `0600` permissions (owner-only read/write)
+
+The `credentials.json` file is a separate file from `config.json` specifically to maintain the permission boundary.
+
+---
+
+### Threat: API Key Exposure via Frontend
+
+**Risk:** Medium — The Wails WebView has access to all bound methods. If a method returns the API key, JavaScript in the WebView could access it.
+
+**Mitigation:** No bound method returns the API key. Only `HasAPIKey() bool` is exposed to the frontend. The key is resolved server-side in `StartStream` and passed directly to the HTTP client.
+
+```
+Frontend knows: "Is an API key configured?" (boolean)
+Frontend never knows: "What is the API key?" (string)
+```
+
+---
+
+### Threat: API Key Exposure via Process Memory
+
+**Risk:** Low — The API key exists in Go process memory while the application is running. Memory dumps or debugging tools could extract it.
+
+**Mitigation:** Accepted risk. This is inherent to any application that uses credentials at runtime. The key is not stored in more locations than necessary. The `llmClient` caches the key for the session lifetime; it is cleared when `SetAPIKey` is called with a new value.
+
+---
+
+### Threat: API Key Exposure via Environment Variable
+
+**Risk:** Low — The `ANTHROPIC_API_KEY` environment variable is a standard mechanism. Process environments are visible to the same user and to root.
+
+**Mitigation:** Accepted risk. Environment variables are a standard credential injection pattern for CLI tools and services. The user who sets the variable controls its visibility.
+
+---
+
+### Threat: Credentials File Permission Escalation
+
+**Risk:** Low — A bug could create the credentials file with wrong permissions (e.g., `0644` instead of `0600`).
+
+**Mitigation:** The keystore code explicitly sets `0600` on file creation. A test validates that the file is created with correct permissions. The file write uses `os.WriteFile` with explicit mode parameter.
+
+---
+
+### Threat: Prompt Injection / Data Exfiltration
+
+**Risk:** Low — The user's prompt is sent to Anthropic's API. The response is markdown rendered in the WebView.
+
+**Mitigation:**
+
+1. markdown-it remains configured with `html: false` — the response cannot execute JavaScript
+2. Code blocks are escaped — no injection via code fences
+3. The response is treated identically to any markdown file content
+4. No response data is sent anywhere except to the local renderer
+
+The existing XSS prevention controls (html: false, code escaping) protect against malicious content in API responses.
+
+---
+
+### Threat: Rate Limit Abuse
+
+**Risk:** Low — An attacker with access to the user's machine could rapidly call `StartStream` to exhaust the user's API credits.
+
+**Mitigation:**
+
+1. Single-stream constraint — only one stream can be active at a time
+2. The API key is required — no unauthenticated streaming
+3. Anthropic enforces rate limits server-side (HTTP 429)
+4. The application surfaces rate limit errors to the user
+
+---
+
+## Security Invariants — LLM Streaming Additions
+
+### 7. API Key Never in Config File
+
+```
+API key MUST NOT be stored in ~/.config/ais/config.json
+```
+
+Location: `internal/llm/keystore.go`
+
+Threat: Credential exposure via world-readable config file
+
+---
+
+### 8. API Key Never Returned to Frontend
+
+```
+No Wails-bound method MUST return the API key string to the frontend
+```
+
+Location: `app.go` (HasAPIKey returns bool only)
+
+Threat: Credential exposure via WebView JavaScript context
+
+---
+
+### 9. Credentials File Permissions
+
+```
+~/.config/ais/credentials.json MUST have 0600 permissions
+```
+
+Location: `internal/llm/keystore.go`
+
+Threat: Credential exposure to other users on shared systems
+
+---
+
+### 10. Streaming Content XSS Prevention
+
+```
+LLM response content MUST pass through the same markdown-it pipeline as file content (html: false, code escaping)
+```
+
+Location: `frontend/src/lib/markdown/renderer.ts`
+
+Threat: XSS via crafted API response content. The existing invariants (2 and 3) cover this, but it is explicitly restated because the content source is now external (network) rather than local (filesystem)

@@ -8,10 +8,11 @@
   import SettingsPanel from './lib/components/SettingsPanel.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import { loadFileTree, rootPath, type FileNode } from './lib/stores/files';
-  import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, tabs } from './lib/stores/tabs';
+  import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, updateTabContentById, setStreamActive, tabs } from './lib/stores/tabs';
   import { loadSettings } from './lib/stores/settings';
   import { readFile } from './lib/stores/files';
   import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen } from './lib/stores/ui';
+  import { activeStream, appendStreamContent, completeStream, cancelStreamState, setStreamError, streamState, startStreamSession } from './lib/stores/stream';
   import { get } from 'svelte/store';
 
   function windowMinimise() {
@@ -27,6 +28,7 @@
   }
 
   let navVisible = $state(false);
+  let pipeTabId: string | null = null;
 
   function handleFileClick(node: FileNode) {
     if (!node.isDir) {
@@ -64,6 +66,50 @@
         const filename = createdPath.split('/').pop() ?? createdPath;
         openTab(createdPath, filename);
         await loadFileTree();
+      });
+
+      EventsOn('llm:chunk', (chunk: { text: string; done: boolean; totalTokens: number }) => {
+        const stream = get(activeStream);
+        if (!stream) return;
+        appendStreamContent(chunk.text);
+        const updated = get(activeStream);
+        if (updated) {
+          updateTabContentById(updated.tabId, updated.content);
+        }
+      });
+
+      EventsOn('llm:done', (chunk: { text: string; done: boolean; totalTokens: number }) => {
+        const stream = get(activeStream);
+        if (!stream) return;
+        if (chunk.text) {
+          appendStreamContent(chunk.text);
+        }
+        completeStream(chunk.totalTokens);
+        const updated = get(activeStream);
+        if (updated) {
+          updateTabContentById(updated.tabId, updated.content);
+          setStreamActive(updated.tabId, false);
+        }
+      });
+
+      EventsOn('llm:error', (error: { code: string; message: string }) => {
+        setStreamError({ code: error.code as any, message: error.message });
+        const stream = get(activeStream);
+        if (stream) {
+          setStreamActive(stream.tabId, false);
+        }
+      });
+
+      EventsOn('pipe:data', (text: string) => {
+        if (!pipeTabId) {
+          pipeTabId = openStreamTab('Pipe Input');
+          startStreamSession(pipeTabId);
+        }
+        appendStreamContent(text);
+        const stream = get(activeStream);
+        if (stream) {
+          updateTabContentById(stream.tabId, stream.content);
+        }
       });
     } catch (err) {
       console.warn('Wails runtime not available (dev mode):', err);
@@ -155,8 +201,16 @@
       }
 
       if (e.key === 'Escape') {
+        // Priority chain: focus mode > active stream > nav panel
         if (get(focusMode)) {
           toggleFocusMode();
+        } else if (get(streamState) === 'streaming') {
+          import('../wailsjs/go/main/App').then(app => app.CancelStream()).catch(() => {});
+          cancelStreamState();
+          const stream = get(activeStream);
+          if (stream) {
+            setStreamActive(stream.tabId, false);
+          }
         } else {
           navVisible = false;
           settingsOpen.set(false);

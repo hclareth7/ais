@@ -8,11 +8,12 @@ export namespace config {
 	    fontSize: number;
 	    sidebarWidth: number;
 	    recentPaths: string[];
-	
+	    selectedModel: string;
+
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
 	    }
-	
+
 	    constructor(source: any = {}) {
 	        if ('string' === typeof source) source = JSON.parse(source);
 	        this.theme = source["theme"];
@@ -22,6 +23,7 @@ export namespace config {
 	        this.fontSize = source["fontSize"];
 	        this.sidebarWidth = source["sidebarWidth"];
 	        this.recentPaths = source["recentPaths"];
+	        this.selectedModel = source["selectedModel"];
 	    }
 	}
 

@@ -16,6 +16,7 @@ type Config struct {
 	FontSize       int      `json:"fontSize"`
 	SidebarWidth   int      `json:"sidebarWidth"`
 	RecentPaths    []string `json:"recentPaths"`
+	SelectedModel  string   `json:"selectedModel"`
 }
 
 type Manager struct {

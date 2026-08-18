@@ -1203,6 +1203,807 @@ Fold state persists per document session.
 
 ---
 
+# LLM Streaming
+
+ais is the ideal surface for conversing with AI.
+
+The streaming experience must feel like reading a document that is being written — not like watching a terminal render output.
+
+The user asks a question. The answer appears. The answer is a document.
+
+No chat bubbles.
+
+No conversation threads.
+
+No avatars.
+
+Just knowledge, arriving as prose.
+
+---
+
+## Design Tokens — Streaming
+
+New CSS custom properties for the streaming experience. All derive from existing design tokens.
+
+```css
+/* Streaming border pulse */
+--stream-glow: var(--accent-solid);
+--stream-glow-dim: var(--accent-dim);
+
+/* Streaming caret */
+--stream-caret: var(--accent-solid);
+--stream-caret-width: 2px;
+--stream-caret-height: 1.2em;
+
+/* Streaming status */
+--stream-status-active: var(--accent-solid);
+--stream-status-complete: var(--success);
+--stream-status-error: var(--danger);
+
+/* Stop control */
+--stream-stop-bg: var(--danger);
+--stream-stop-bg-dim: rgba(239, 68, 68, 0.12);
+```
+
+Dark mode values inherit from the existing accent palette:
+
+```yaml
+Stream Glow: #7BA0FF (same as --accent-solid)
+Stream Caret: #7BA0FF
+Active Status: #7BA0FF
+Complete Status: #10B981
+Error Status: #EF4444
+```
+
+Light mode:
+
+```yaml
+Stream Glow: #3B6CE7 (same as --accent-solid)
+Stream Caret: #3B6CE7
+Active Status: #3B6CE7
+Complete Status: #10B981
+Error Status: #EF4444
+```
+
+---
+
+## Ask AI — Entry Point
+
+The entry point lives inside the Command Palette.
+
+No new buttons.
+
+No new panels.
+
+No new modes.
+
+The Command Palette gains a fourth category tab: **AI**.
+
+```text
+All | Docs | Commands | AI
+```
+
+When the AI tab is active:
+
+```text
+- Search input placeholder changes to "Ask Claude..."
+- The results area is replaced by a prompt input area
+- The footer shows: ↵ send   esc close
+```
+
+The prompt input area:
+
+```css
+min-height: 60px;
+max-height: 180px;
+padding: 14px 18px;
+font-size: 15px;
+font-family: inherit;
+color: var(--text-primary);
+background: transparent;
+border: none;
+resize: none;
+line-height: 1.5;
+```
+
+The input supports multi-line entry.
+
+Shift + Enter inserts a newline.
+
+Enter submits the prompt.
+
+The prompt area also shows the model selector inline — a small pill in the bottom-right corner:
+
+```text
+claude-haiku-4-5 ▾
+```
+
+```css
+font-size: 11px;
+font-family: 'JetBrains Mono', monospace;
+color: var(--text-tertiary);
+padding: 3px 8px;
+background: var(--hover-bg);
+border-radius: 6px;
+cursor: pointer;
+```
+
+Clicking the pill cycles through available models.
+
+Submission flow:
+
+```text
+User presses Enter
+    ↓
+Command Palette closes (120ms)
+    ↓
+New stream tab opens
+    ↓
+Streaming begins
+```
+
+---
+
+## Streaming Tab
+
+A streaming tab is a tab that is receiving content.
+
+It looks like a regular tab.
+
+Almost.
+
+The difference is a single visual signal: a 1px bottom border that breathes.
+
+Streaming tab properties:
+
+```css
+/* Base tab (inherits all .tab styles) */
+position: relative;
+
+/* Streaming indicator — animated bottom border */
+.tab.streaming::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: var(--stream-glow);
+  border-radius: 1px;
+  animation: stream-pulse 2s ease-in-out infinite;
+}
+```
+
+The pulse animation:
+
+```css
+@keyframes stream-pulse {
+  0%, 100% { opacity: 0.15; }
+  50% { opacity: 0.55; }
+}
+```
+
+| Property | Value |
+|----------|-------|
+| Indicator width | 60% of tab width (centered) |
+| Indicator height | 1px |
+| Indicator color | var(--stream-glow) |
+| Pulse duration | 2s |
+| Pulse easing | ease-in-out |
+| Pulse opacity range | 0.15 — 0.55 |
+| Pulse iteration | infinite (while streaming) |
+
+When streaming completes:
+
+```text
+Animation stops
+    ↓
+Indicator fades out (200ms)
+    ↓
+Tab becomes a regular tab
+    ↓
+No visual difference from a file tab
+```
+
+The streaming tab label:
+
+```text
+Format: "AI: {first 30 characters of prompt}..."
+Example: "AI: How do I configure RBAC..."
+```
+
+If the prompt is shorter than 30 characters, no ellipsis.
+
+The tab title attribute shows the full prompt for tooltip on hover.
+
+When reduced motion is preferred:
+
+```text
+No animation
+Indicator is static at opacity 0.35
+Indicator disappears instantly on completion
+```
+
+---
+
+## Auto-Scroll Behavior
+
+The viewer follows new content as it arrives.
+
+But only if the reader is already at the bottom.
+
+Rules:
+
+```text
+User is at the bottom of the document
+    ↓
+New content arrives
+    ↓
+Viewport scrolls to keep the latest content visible
+    ↓
+Scroll is smooth (60ms ease-out)
+```
+
+```text
+User scrolls up manually
+    ↓
+Auto-scroll pauses
+    ↓
+"Resume" pill appears at the bottom of the viewer
+    ↓
+New content continues to arrive below, silently
+```
+
+```text
+User clicks "Resume" pill
+    OR
+User scrolls back to the bottom
+    ↓
+Auto-scroll resumes
+    ↓
+"Resume" pill disappears
+```
+
+The "Resume" pill:
+
+```css
+position: fixed;
+bottom: 80px;
+left: 50%;
+transform: translateX(-50%);
+padding: 6px 16px;
+font-size: 12px;
+color: var(--text-secondary);
+background: var(--surface-elevated);
+backdrop-filter: blur(20px);
+-webkit-backdrop-filter: blur(20px);
+border: 1px solid var(--border);
+border-radius: 20px;
+cursor: pointer;
+z-index: 28;
+opacity: 0;
+transition: opacity 0.15s;
+```
+
+The pill appears with a 150ms fade-in.
+
+The pill disappears with a 120ms fade-out.
+
+Content of the pill:
+
+```text
+↓ Resume following
+```
+
+No icon.
+
+Just text and a subtle arrow.
+
+The pill follows the glass surface aesthetic.
+
+It does not compete with the ControlStrip.
+
+---
+
+## Streaming Caret
+
+A thin blinking cursor marks the end of the stream.
+
+The caret tells the reader: content is still arriving.
+
+```css
+.stream-caret {
+  display: inline-block;
+  width: var(--stream-caret-width);
+  height: var(--stream-caret-height);
+  background: var(--stream-caret);
+  border-radius: 1px;
+  animation: caret-blink 1s step-end infinite;
+  vertical-align: text-bottom;
+  margin-left: 2px;
+}
+
+@keyframes caret-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+```
+
+| Property | Value |
+|----------|-------|
+| Width | 2px |
+| Height | 1.2em (matches line height) |
+| Color | var(--stream-caret) |
+| Blink rate | 1s (500ms on, 500ms off) |
+| Blink style | step-end (sharp on/off, not fade) |
+
+The caret appears at the end of the last rendered text.
+
+When a new paragraph renders, the caret moves to the end of the new paragraph.
+
+When streaming completes, the caret fades out (200ms) and is removed from the DOM.
+
+When reduced motion is preferred:
+
+```text
+No blink animation
+Caret is static at opacity 0.6
+Caret still fades out on completion
+```
+
+---
+
+## Code Block — Streaming State
+
+While a code fence is open and tokens are still arriving:
+
+```text
+Block renders as monospace plain text
+    ↓
+Background: var(--code-bg)
+    ↓
+Border: 1px solid var(--code-border)
+    ↓
+Border-left: 2px solid var(--stream-glow) at opacity 0.3
+    ↓
+Streaming caret appears inside the block
+```
+
+When the closing fence arrives:
+
+```text
+Left border accent fades out (120ms)
+    ↓
+Syntax highlighting applies in one pass
+    ↓
+Caret moves past the block
+```
+
+The left border accent is the only visual distinction between a streaming code block and a completed one.
+
+No "loading" text.
+
+No shimmer.
+
+No placeholder.
+
+---
+
+## Stop Control
+
+A stop button appears in the ControlStrip during active streaming.
+
+Only during active streaming.
+
+The moment the stream ends — complete, cancelled, or error — the button disappears.
+
+Position in the ControlStrip:
+
+```text
+[zoom-] [zoom%] [zoom+] | [stop] | [narrow] [width] [wide] | [focus] [theme] [settings]
+```
+
+The stop button is placed after the zoom group, separated by a divider.
+
+Button properties:
+
+```css
+/* Inherits all .cb (control button) styles */
+width: 34px;
+height: 34px;
+border-radius: 50%;
+```
+
+Icon: a filled square (stop symbol).
+
+```css
+.cb-stop svg rect {
+  width: 10px;
+  height: 10px;
+  x: 5;
+  y: 5;
+  rx: 1.5;
+  fill: var(--icon-stroke);
+  stroke: none;
+}
+```
+
+Hover state:
+
+```css
+.cb-stop:hover {
+  background: var(--stream-stop-bg-dim);
+}
+
+.cb-stop:hover svg rect {
+  fill: var(--stream-stop-bg);
+}
+```
+
+The button appears with a 120ms fade-in (matches tab creation duration).
+
+The button disappears with a 120ms fade-out.
+
+Keyboard shortcut:
+
+```text
+Escape    → Stop streaming (when a stream tab is active)
+```
+
+Escape is context-sensitive:
+
+```text
+If Command Palette is open       → Close palette (existing behavior)
+Else if streaming is active      → Stop streaming
+Else if navigation is open       → Close navigation (existing behavior)
+```
+
+The priority chain preserves existing escape behavior.
+
+When streaming is stopped by the user:
+
+```text
+Streaming caret fades out (200ms)
+    ↓
+Tab pulse animation stops
+    ↓
+Tab indicator fades out (200ms)
+    ↓
+Stop button fades out (120ms)
+    ↓
+Content remains as-is (no deletion)
+    ↓
+A subtle status line appears below the last content:
+    "Stopped"
+```
+
+The "Stopped" status line:
+
+```css
+font-size: 12px;
+color: var(--text-ghost);
+margin-top: 24px;
+padding-top: 12px;
+border-top: 1px solid var(--border);
+```
+
+---
+
+## Error States
+
+Errors are not dialogs.
+
+Errors are not modals.
+
+Errors are not toast notifications.
+
+Errors are inline text in the viewer area, below the last successfully rendered content.
+
+They look like part of the document — quiet, informative, non-aggressive.
+
+---
+
+### Error Layout
+
+```css
+.stream-error {
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+```
+
+Error indicator:
+
+```css
+.stream-error-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--stream-status-error);
+  margin-top: 7px;
+  flex-shrink: 0;
+}
+```
+
+Error text:
+
+```css
+.stream-error-text {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-secondary);
+}
+```
+
+Error action link:
+
+```css
+.stream-error-action {
+  color: var(--accent-text);
+  cursor: pointer;
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color 0.12s;
+}
+
+.stream-error-action:hover {
+  border-bottom-color: var(--accent-text);
+}
+```
+
+---
+
+### Error: No API Key
+
+When the user submits a prompt without a configured API key:
+
+```text
+The stream tab opens
+    ↓
+Instead of streaming content, a gentle message appears:
+
+    ● No API key configured.
+      Add your API key in Settings to start a conversation.
+      Open Settings
+```
+
+"Open Settings" is an action link that opens the Settings panel to the AI section.
+
+The message uses `--text-secondary` for the text and `--warning` for the indicator dot (not `--danger` — this is guidance, not failure).
+
+```css
+.stream-error-dot.warning {
+  background: var(--warning);
+}
+```
+
+---
+
+### Error: Network Failure
+
+When the connection drops during streaming:
+
+```text
+[... last rendered content ...]
+
+    ● Connection lost — content may be incomplete.
+      Check your network and try again.
+```
+
+Content already rendered is preserved.
+
+The error appears below the last paragraph.
+
+---
+
+### Error: Rate Limit
+
+When the API returns a rate limit response:
+
+```text
+    ● Rate limit reached.
+      Try again in a moment.
+```
+
+No countdown timer.
+
+No retry button.
+
+The user can submit a new prompt when ready.
+
+---
+
+### Error: API Error
+
+For any other API error:
+
+```text
+    ● Something went wrong.
+      {error message from API}
+```
+
+The error message from the API is displayed verbatim in `var(--text-tertiary)`.
+
+---
+
+### Error Animation
+
+All error messages appear with the same 80ms fade-in used for paragraph rendering.
+
+Errors respect `prefers-reduced-motion: reduce` — no fade, instant display.
+
+---
+
+## API Key Configuration
+
+The SettingsPanel gains a new section: **AI**.
+
+Position in the settings hierarchy:
+
+```text
+Appearance
+ ├─ Theme
+ ├─ Reading Width
+ ├─ Opacity
+ ├─ Window Radius
+ └─ Background
+
+AI
+ ├─ API Key
+ ├─ Model
+ └─ Status
+```
+
+The AI section is separated from Appearance by a 16px gap and a section divider.
+
+Section divider:
+
+```css
+.settings-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 12px 0;
+}
+```
+
+Section title:
+
+```css
+/* Same .sp-title styles as "Appearance" */
+font-size: 13px;
+font-weight: 600;
+margin-bottom: 16px;
+display: flex;
+align-items: center;
+gap: 8px;
+```
+
+Icon: a small spark/AI symbol using the existing icon style (16px, stroke: `var(--icon-stroke)`).
+
+---
+
+### API Key Input
+
+```text
+Label: "API Key"
+Input: masked (●●●●●●●●●●●●) with show/hide toggle
+```
+
+Input properties:
+
+```css
+.api-key-input {
+  width: 140px;
+  padding: 5px 10px;
+  font-size: 12px;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text-primary);
+  background: var(--hover-bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  outline: none;
+  transition: border-color 0.12s;
+}
+
+.api-key-input:focus {
+  border-color: var(--border-focus);
+}
+
+.api-key-input::placeholder {
+  color: var(--text-ghost);
+}
+```
+
+The show/hide toggle is a small eye icon (14px) positioned inside the input at the right edge.
+
+When the key is saved, the input shows masked characters.
+
+When the key is empty, the placeholder reads "sk-ant-..."
+
+---
+
+### Model Selector
+
+The model selector follows the same segmented control pattern as the theme selector.
+
+```css
+/* Same .theme-sel / .th-opt pattern */
+```
+
+Options:
+
+```text
+Haiku | Sonnet | Opus
+```
+
+Labels are short model family names, not full model IDs.
+
+The full model ID (`claude-haiku-4-5`, `claude-sonnet-5`, `claude-opus-5`) is shown in a tooltip on hover.
+
+Default selection: Sonnet.
+
+---
+
+### Status Indicator
+
+A small status dot next to the "AI" section title.
+
+```text
+Connected        → 6px dot, var(--success)
+No API key       → 6px dot, var(--warning)
+Invalid key      → 6px dot, var(--danger)
+```
+
+The dot is positioned after the "AI" label text with 6px gap.
+
+No text label for the status — the dot alone communicates.
+
+Tooltip on hover provides the text label: "Connected", "No API key", "Invalid key".
+
+---
+
+## Screen Reader Announcements — Streaming
+
+Extends the existing screen reader announcement table:
+
+```text
+Prompt submitted      → "Sending prompt to Claude"
+Stream started        → "Receiving response"
+Stream complete       → "Response complete, {n} sections"
+Stream cancelled      → "Response stopped"
+Stream error          → "Error: {error description}"
+Auto-scroll paused    → "Auto-scroll paused, press button to resume"
+Auto-scroll resumed   → "Auto-scroll resumed"
+```
+
+---
+
+## Animation Summary — Streaming
+
+Extends the existing animation specifications table:
+
+| Animation | Duration |
+|-----------|----------|
+| Tab streaming pulse | 2s infinite |
+| Streaming caret blink | 1s step-end |
+| Auto-scroll advance | 60ms ease-out |
+| Resume pill appear | 150ms |
+| Resume pill disappear | 120ms |
+| Stop button appear | 120ms |
+| Stop button disappear | 120ms |
+| Streaming caret fade-out | 200ms |
+| Tab indicator fade-out | 200ms |
+| Error message appear | 80ms |
+| Code block left-accent fade-out | 120ms |
+
+All animations disabled under `prefers-reduced-motion: reduce`.
+
+---
+
 # Accessibility
 
 ais does not have an accessibility mode.

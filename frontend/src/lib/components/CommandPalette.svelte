@@ -1,14 +1,25 @@
 <script lang="ts">
   import { commandPaletteOpen } from '../stores/ui';
   import { fileTree, type FileNode } from '../stores/files';
-  import { openTab, activeTab } from '../stores/tabs';
+  import { openTab, activeTab, openStreamTab } from '../stores/tabs';
   import { setTheme } from '../stores/settings';
+  import { setPrompting, startStreamSession, clearStream } from '../stores/stream';
   import { get } from 'svelte/store';
 
   let query = $state('');
   let inputEl: HTMLInputElement | undefined = $state();
+  let promptEl: HTMLTextAreaElement | undefined = $state();
   let selectedIdx = $state(0);
   let activeCategory = $state('all');
+  let aiPrompt = $state('');
+  let selectedModel = $state('claude-sonnet-5');
+  let hasApiKey = $state(false);
+
+  const modelOptions = [
+    { id: 'claude-haiku-4-5', label: 'Haiku' },
+    { id: 'claude-sonnet-5', label: 'Sonnet' },
+    { id: 'claude-opus-5', label: 'Opus' },
+  ];
 
   type Result = {
     type: 'file' | 'command';
@@ -78,6 +89,20 @@
       query = '';
       selectedIdx = 0;
       activeCategory = 'all';
+      aiPrompt = '';
+      // Check API key status on open
+      import('../../../wailsjs/go/main/App')
+        .then(app => app.HasAPIKey())
+        .then(has => { hasApiKey = has; })
+        .catch(() => { hasApiKey = false; });
+    }
+  });
+
+  // Focus prompt textarea when switching to AI tab
+  $effect(() => {
+    if (activeCategory === 'ai' && promptEl) {
+      requestAnimationFrame(() => promptEl?.focus());
+      setPrompting();
     }
   });
 
@@ -88,12 +113,49 @@
 
   function close() {
     commandPaletteOpen.set(false);
+    if (activeCategory !== 'ai') {
+      clearStream();
+    }
+  }
+
+  async function submitAIPrompt() {
+    const prompt = aiPrompt.trim();
+    if (!prompt) return;
+
+    const tabId = openStreamTab(prompt);
+    startStreamSession(tabId);
+    close();
+
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      await App.StartStream(prompt);
+    } catch (err) {
+      // Error will come through llm:error event
+      console.error('Failed to start stream:', err);
+    }
+  }
+
+  function cycleModel() {
+    const idx = modelOptions.findIndex(m => m.id === selectedModel);
+    const nextIdx = (idx + 1) % modelOptions.length;
+    selectedModel = modelOptions[nextIdx].id;
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
       close();
+      return;
+    }
+
+    // AI prompt mode has its own key handling
+    if (activeCategory === 'ai') {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        submitAIPrompt();
+        return;
+      }
+      // Shift+Enter inserts newline naturally in textarea
       return;
     }
 
@@ -124,6 +186,7 @@
     { key: 'all', label: 'All' },
     { key: 'docs', label: 'Docs' },
     { key: 'commands', label: 'Commands' },
+    { key: 'ai', label: 'AI' },
   ];
 </script>
 
@@ -140,13 +203,25 @@
     <div class="pal">
       <div class="pal-input">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        <input
-          bind:this={inputEl}
-          bind:value={query}
-          placeholder="Search docs, commands..."
-          autocomplete="off"
-          spellcheck="false"
-        />
+        {#if activeCategory === 'ai'}
+          <input
+            bind:this={inputEl}
+            value=""
+            placeholder="Ask Claude..."
+            autocomplete="off"
+            spellcheck="false"
+            readonly
+            style="cursor: default; opacity: 0.5;"
+          />
+        {:else}
+          <input
+            bind:this={inputEl}
+            bind:value={query}
+            placeholder="Search docs, commands..."
+            autocomplete="off"
+            spellcheck="false"
+          />
+        {/if}
         <span class="pal-kbd">esc</span>
       </div>
 
@@ -160,38 +235,73 @@
         {/each}
       </div>
 
-      <div class="pal-results" role="listbox">
-        {#each results as result, i (result.detail + result.label)}
-          <button
-            class="pr"
-            class:sel={i === selectedIdx}
-            role="option"
-            aria-selected={i === selectedIdx}
-            onclick={() => result.action()}
-            onmouseenter={() => selectedIdx = i}
-          >
-            <svg viewBox="0 0 24 24">
-              {#if result.type === 'file'}
-                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
-              {:else}
-                <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
-              {/if}
-            </svg>
-            <div class="pr-info">
-              <div class="pr-t">{result.label}</div>
-              <div class="pr-p">{result.detail}</div>
+      {#if activeCategory === 'ai'}
+        <div class="pal-ai">
+          {#if !hasApiKey}
+            <div class="pal-ai-nokey">
+              <span class="pal-ai-dot warning"></span>
+              <div>
+                <div class="pal-ai-msg">No API key configured.</div>
+                <div class="pal-ai-hint">Add your API key in Settings to start a conversation.</div>
+              </div>
             </div>
-          </button>
-        {/each}
-        {#if results.length === 0}
-          <div class="pr-empty">No results found</div>
-        {/if}
-      </div>
+          {:else}
+            <textarea
+              bind:this={promptEl}
+              bind:value={aiPrompt}
+              placeholder="Type your question..."
+              class="pal-ai-textarea"
+              rows="3"
+              spellcheck="false"
+              aria-label="AI prompt"
+            ></textarea>
+            <div class="pal-ai-bar">
+              <button class="pal-model-pill" onclick={cycleModel} title="Click to change model" aria-label="Selected model: {selectedModel}">
+                {modelOptions.find(m => m.id === selectedModel)?.label ?? 'Sonnet'}
+              </button>
+            </div>
+          {/if}
+        </div>
+      {:else}
+        <div class="pal-results" role="listbox">
+          {#each results as result, i (result.detail + result.label)}
+            <button
+              class="pr"
+              class:sel={i === selectedIdx}
+              role="option"
+              aria-selected={i === selectedIdx}
+              onclick={() => result.action()}
+              onmouseenter={() => selectedIdx = i}
+            >
+              <svg viewBox="0 0 24 24">
+                {#if result.type === 'file'}
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                {:else}
+                  <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+                {/if}
+              </svg>
+              <div class="pr-info">
+                <div class="pr-t">{result.label}</div>
+                <div class="pr-p">{result.detail}</div>
+              </div>
+            </button>
+          {/each}
+          {#if results.length === 0}
+            <div class="pr-empty">No results found</div>
+          {/if}
+        </div>
+      {/if}
 
       <div class="pal-footer">
-        <span><kbd>&uarr;&darr;</kbd> navigate</span>
-        <span><kbd>&crarr;</kbd> select</span>
-        <span><kbd>esc</kbd> close</span>
+        {#if activeCategory === 'ai' && hasApiKey}
+          <span><kbd>&crarr;</kbd> send</span>
+          <span><kbd>shift+&crarr;</kbd> newline</span>
+          <span><kbd>esc</kbd> close</span>
+        {:else}
+          <span><kbd>&uarr;&darr;</kbd> navigate</span>
+          <span><kbd>&crarr;</kbd> select</span>
+          <span><kbd>esc</kbd> close</span>
+        {/if}
       </div>
     </div>
   </div>
@@ -371,5 +481,83 @@
     border-radius: 3px;
     font-size: 10px;
     color: var(--text-tertiary);
+  }
+
+  /* AI prompt mode */
+  .pal-ai {
+    padding: 6px 14px 14px;
+  }
+
+  .pal-ai-textarea {
+    width: 100%;
+    min-height: 60px;
+    max-height: 180px;
+    padding: 14px 18px;
+    font-size: 15px;
+    font-family: inherit;
+    color: var(--text-primary);
+    background: transparent;
+    border: none;
+    resize: none;
+    line-height: 1.5;
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .pal-ai-textarea::placeholder {
+    color: var(--text-tertiary);
+  }
+
+  .pal-ai-bar {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 6px;
+  }
+
+  .pal-model-pill {
+    font-size: 11px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-tertiary);
+    padding: 3px 8px;
+    background: var(--hover-bg);
+    border-radius: 6px;
+    cursor: pointer;
+    border: none;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .pal-model-pill:hover {
+    background: var(--active-bg);
+    color: var(--text-secondary);
+  }
+
+  .pal-ai-nokey {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 20px 4px;
+  }
+
+  .pal-ai-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    margin-top: 5px;
+    flex-shrink: 0;
+  }
+
+  .pal-ai-dot.warning {
+    background: var(--warning);
+  }
+
+  .pal-ai-msg {
+    font-size: 14px;
+    color: var(--text-secondary);
+  }
+
+  .pal-ai-hint {
+    font-size: 12px;
+    color: var(--text-tertiary);
+    margin-top: 4px;
   }
 </style>

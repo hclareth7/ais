@@ -3,6 +3,12 @@
 import {config} from '../models';
 import {types} from '../models';
 
+export function CancelStream():Promise<void>;
+
+export function DeleteAPIKey():Promise<void>;
+
+export function GetAvailableModels():Promise<Array<string>>;
+
 export function GetConfig():Promise<config.Config>;
 
 export function GetFileTree():Promise<types.FileNode>;
@@ -11,14 +17,24 @@ export function GetRootPath():Promise<string>;
 
 export function GetTheme():Promise<string>;
 
+export function HasAPIKey():Promise<boolean>;
+
 export function OpenFolder():Promise<string>;
 
 export function ReadFile(arg1:string):Promise<string>;
+
+export function SetAPIKey(arg1:string):Promise<void>;
 
 export function SetCornerRadius(arg1:number):Promise<void>;
 
 export function SetRootPath(arg1:string):Promise<void>;
 
 export function SetTheme(arg1:string):Promise<void>;
+
+export function StartPipe(arg1:string):Promise<string>;
+
+export function StartStream(arg1:string):Promise<void>;
+
+export function StopPipe():Promise<void>;
 
 export function UpdateConfig(arg1:config.Config):Promise<void>;

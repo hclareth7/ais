@@ -1,6 +1,8 @@
 <script lang="ts">
   import { renderMarkdown } from '../markdown/renderer';
   import { activeTab, saveScrollPos } from '../stores/tabs';
+  import { activeStream, streamState, type StreamError } from '../stores/stream';
+  import { settingsOpen } from '../stores/ui';
   import WelcomeScreen from './WelcomeScreen.svelte';
 
   let { zoomLevel = 100, readingWidth = 720 }: {
@@ -13,6 +15,20 @@
 
   let previousTabId: string | null = $state(null);
 
+  // Streaming state
+  let isStreamTab = $derived($activeTab?.type === 'stream');
+  let isStreaming = $derived(isStreamTab && $activeTab?.streamActive === true);
+  let userScrolledUp = $state(false);
+  let showResumePill = $derived(isStreaming && userScrolledUp);
+  let caretFading = $state(false);
+
+  // Stream error/cancelled state for current tab
+  let currentStreamState = $derived.by(() => {
+    const stream = $activeStream;
+    if (!stream || !$activeTab || stream.tabId !== $activeTab.id) return null;
+    return stream;
+  });
+
   $effect(() => {
     const currentId = $activeTab?.id ?? null;
     if (previousTabId && previousTabId !== currentId && viewerEl) {
@@ -21,15 +37,59 @@
     previousTabId = currentId;
   });
 
+  // Restore scroll for file tabs; reset for stream tabs
   $effect(() => {
     if ($activeTab && viewerEl) {
+      if ($activeTab.type !== 'stream') {
+        requestAnimationFrame(() => {
+          if (viewerEl) {
+            viewerEl.scrollTop = $activeTab?.scrollPos ?? 0;
+          }
+        });
+      }
+    }
+  });
+
+  // Auto-scroll during streaming
+  $effect(() => {
+    // Access content to trigger reactivity
+    const _content = $activeTab?.content;
+    if (isStreaming && viewerEl && !userScrolledUp) {
       requestAnimationFrame(() => {
         if (viewerEl) {
-          viewerEl.scrollTop = $activeTab?.scrollPos ?? 0;
+          viewerEl.scrollTop = viewerEl.scrollHeight;
         }
       });
     }
   });
+
+  // Reset userScrolledUp when a new stream starts
+  $effect(() => {
+    if (isStreaming) {
+      userScrolledUp = false;
+    }
+  });
+
+  // Caret fade-out on stream completion
+  $effect(() => {
+    if (currentStreamState && (currentStreamState.state === 'complete' || currentStreamState.state === 'cancelled')) {
+      caretFading = true;
+      setTimeout(() => { caretFading = false; }, 200);
+    }
+  });
+
+  function handleScroll() {
+    if (!viewerEl || !isStreaming) return;
+    const atBottom = viewerEl.scrollHeight - viewerEl.scrollTop - viewerEl.clientHeight < 50;
+    userScrolledUp = !atBottom;
+  }
+
+  function resumeFollowing() {
+    userScrolledUp = false;
+    if (viewerEl) {
+      viewerEl.scrollTop = viewerEl.scrollHeight;
+    }
+  }
 
   async function handleCodeCopy(btn: HTMLElement) {
     const pre = btn.closest('pre.code-block');
@@ -53,6 +113,13 @@
 
   function handleContentClick(e: MouseEvent) {
     const target = e.target as HTMLElement;
+
+    // Handle "Open Settings" link in stream errors
+    if (target.closest('.stream-error-action')) {
+      e.preventDefault();
+      settingsOpen.set(true);
+      return;
+    }
 
     const copyBtn = target.closest('.code-copy-btn') as HTMLElement | null;
     if (copyBtn) {
@@ -85,14 +152,31 @@
 
     heading.classList.toggle('collapsed', !isCollapsed);
   }
+
+  function getErrorDisplay(error: StreamError): { dotClass: string; message: string; hint: string; showSettings: boolean } {
+    switch (error.code) {
+      case 'auth':
+        return { dotClass: '', message: 'API key is invalid.', hint: 'Check your key in Settings.', showSettings: true };
+      case 'rate_limit':
+        return { dotClass: '', message: 'Rate limit reached.', hint: 'Try again in a moment.', showSettings: false };
+      case 'network':
+        return { dotClass: '', message: 'Connection lost.', hint: 'Check your network and try again.', showSettings: false };
+      default:
+        return { dotClass: '', message: 'Something went wrong.', hint: error.message, showSettings: false };
+    }
+  }
 </script>
 
 {#if $activeTab}
   <div
     class="doc"
+    class:streaming={isStreaming}
     bind:this={viewerEl}
     role="article"
-    aria-label={$activeTab.name}
+    aria-label={isStreamTab ? `AI response: ${$activeTab.name}` : $activeTab.name}
+    aria-busy={isStreaming}
+    aria-live={isStreamTab ? 'polite' : undefined}
+    onscroll={handleScroll}
   >
     <div
       class="doc-inner"
@@ -102,8 +186,47 @@
       style="max-width: {readingWidth}px; transform: scale({zoomLevel / 100}); transform-origin: top center;"
     >
       {@html renderedHtml}
+
+      {#if isStreaming || caretFading}
+        <span class="stream-caret" class:fade-out={caretFading}></span>
+      {/if}
+
+      {#if currentStreamState?.state === 'cancelled'}
+        <div class="stream-stopped">Stopped</div>
+      {/if}
+
+      {#if currentStreamState?.state === 'error' && currentStreamState.error}
+        {@const errDisplay = getErrorDisplay(currentStreamState.error)}
+        <div class="stream-error">
+          <span class="stream-error-dot" class:warning={currentStreamState.error.code === 'auth'}></span>
+          <div class="stream-error-text">
+            <div>{errDisplay.message}</div>
+            <div style="color: var(--text-tertiary); margin-top: 2px;">{errDisplay.hint}</div>
+            {#if errDisplay.showSettings}
+              <button class="stream-error-action" style="margin-top: 4px;">Open Settings</button>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
+      {#if isStreamTab && !$activeTab.content && !isStreaming && !currentStreamState?.error && currentStreamState?.state !== 'cancelled'}
+        <div class="stream-error">
+          <span class="stream-error-dot warning"></span>
+          <div class="stream-error-text">No content received.</div>
+        </div>
+      {/if}
     </div>
   </div>
+
+  {#if showResumePill}
+    <button
+      class="resume-pill"
+      aria-label="Resume auto-scroll"
+      onclick={resumeFollowing}
+    >
+      Resume following
+    </button>
+  {/if}
 {:else}
   <WelcomeScreen />
 {/if}
@@ -118,6 +241,20 @@
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) transparent;
     user-select: text;
+    position: relative;
+  }
+
+  /* Streaming document border glow (Design.md) */
+  .doc.streaming {
+    box-shadow: inset 0 0 0 1px var(--stream-glow);
+    animation: stream-pulse 2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .doc.streaming {
+      animation: none;
+      box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--stream-glow) 35%, transparent);
+    }
   }
 
   .doc-inner {

@@ -1,7 +1,9 @@
 <script lang="ts">
   import { zoomLevel, zoomIn, zoomOut, resetZoom, readingWidth, toggleFocusMode, focusMode, toggleSettings } from '../stores/ui';
   import { theme, setTheme, type ThemeMode } from '../stores/settings';
-  import { activeTab } from '../stores/tabs';
+  import { activeTab, setStreamActive } from '../stores/tabs';
+  import { streamActive, cancelStreamState, activeStream } from '../stores/stream';
+  import { get } from 'svelte/store';
 
   let copied = $state(false);
   let copyTimer: ReturnType<typeof setTimeout> | null = $state(null);
@@ -20,6 +22,18 @@
 
   function widenWidth() {
     readingWidth.update(w => Math.min(1000, w + 40));
+  }
+
+  async function handleStopStream() {
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      await App.CancelStream();
+    } catch { /* ignore */ }
+    cancelStreamState();
+    const stream = get(activeStream);
+    if (stream) {
+      setStreamActive(stream.tabId, false);
+    }
   }
 
   async function copyDocument() {
@@ -50,6 +64,13 @@
   <button class="cb" onclick={zoomIn} aria-label="Zoom in" title="Zoom in (Ctrl+=)">
     <svg viewBox="0 0 20 20"><circle cx="8.5" cy="8.5" r="5.5"/><line x1="13" y1="13" x2="17" y2="17"/><line x1="6" y1="8.5" x2="11" y2="8.5"/><line x1="8.5" y1="6" x2="8.5" y2="11"/></svg>
   </button>
+
+  {#if $streamActive}
+    <div class="cb-div" aria-hidden="true"></div>
+    <button class="cb cb-stop" title="Stop receiving response (Esc)" aria-label="Stop streaming" onclick={handleStopStream}>
+      <svg viewBox="0 0 20 20"><rect x="5" y="5" width="10" height="10" rx="1.5" fill="currentColor" stroke="none"/></svg>
+    </button>
+  {/if}
 
   <div class="cb-div" aria-hidden="true"></div>
 
@@ -184,5 +205,21 @@
 
   .cb-val:hover {
     background: var(--hover-bg);
+  }
+
+  /* Stop button (Design.md) */
+  .cb-stop {
+    color: var(--icon-stroke);
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .cb-stop:hover {
+    background: var(--stream-stop-bg-dim);
+    color: var(--stream-stop-bg);
+  }
+
+  .cb-stop svg {
+    stroke: none;
+    fill: currentColor;
   }
 </style>

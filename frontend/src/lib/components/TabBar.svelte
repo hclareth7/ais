@@ -1,5 +1,7 @@
 <script lang="ts">
   import { tabs, activeTabId, closeTab } from '../stores/tabs';
+  import { activeStream, cancelStreamState } from '../stores/stream';
+  import { get } from 'svelte/store';
 
   let tabCount = $derived($tabs.length);
 
@@ -7,15 +9,25 @@
     activeTabId.set(id);
   }
 
+  function cancelIfStreaming(id: string) {
+    const stream = get(activeStream);
+    if (stream && stream.tabId === id && stream.state === 'streaming') {
+      import('../../../wailsjs/go/main/App').then(app => app.CancelStream()).catch(() => {});
+      cancelStreamState();
+    }
+  }
+
   function handleMiddleClick(e: MouseEvent, id: string) {
     if (e.button === 1) {
       e.preventDefault();
+      cancelIfStreaming(id);
       closeTab(id);
     }
   }
 
   function handleCloseClick(e: MouseEvent, id: string) {
     e.stopPropagation();
+    cancelIfStreaming(id);
     closeTab(id);
   }
 
@@ -33,13 +45,15 @@
       <div
         class="tab"
         class:on={$activeTabId === tab.id}
+        class:streaming={tab.type === 'stream' && tab.streamActive}
         role="tab"
         tabindex="0"
         aria-selected={$activeTabId === tab.id}
+        aria-label={tab.type === 'stream' && tab.streamActive ? `${tab.name}, streaming` : tab.name}
         onclick={() => handleTabClick(tab.id)}
         onkeydown={(e) => handleTabKeydown(e, tab.id)}
         onauxclick={(e) => handleMiddleClick(e, tab.id)}
-        title={tab.path}
+        title={tab.type === 'stream' ? tab.name : tab.path}
       >
         <span class="tab-name">{tab.name}</span>
         <button
@@ -142,5 +156,25 @@
   .tc:hover {
     opacity: 1 !important;
     background: var(--hover-bg);
+  }
+
+  /* Streaming tab indicator (Design.md) */
+  .tab.streaming::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: var(--stream-glow);
+    border-radius: 1px;
+    animation: stream-pulse 2s ease-in-out infinite;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .tab.streaming::after {
+      animation: none;
+      opacity: 0.35;
+    }
   }
 </style>
