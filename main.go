@@ -28,6 +28,8 @@ var version = "dev"
 func main() {
 	args := os.Args[1:]
 	rootPath := "."
+	enablePipe := false
+	pipePath := ""
 
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
@@ -37,6 +39,12 @@ func main() {
 		case "--mcp":
 			fmt.Println("MCP mode not yet implemented")
 			os.Exit(0)
+		case "--pipe":
+			enablePipe = true
+			if i+1 < len(args) && len(args[i+1]) > 0 && args[i+1][0] != '-' {
+				i++
+				pipePath = args[i]
+			}
 		default:
 			if len(args[i]) > 0 && args[i][0] != '-' {
 				rootPath = args[i]
@@ -103,6 +111,14 @@ func main() {
 		OnStartup: app.startup,
 		OnDomReady: func(_ context.Context) {
 			platform.ConfigureWindow(20)
+			if enablePipe {
+				path, err := app.StartPipe(pipePath)
+				if err != nil {
+					fmt.Fprintf(os.Stderr, "warning: failed to start pipe: %v\n", err)
+				} else {
+					fmt.Fprintf(os.Stdout, "%s\n", path)
+				}
+			}
 		},
 		OnShutdown: app.shutdown,
 		Bind: []interface{}{
