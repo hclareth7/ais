@@ -99,6 +99,29 @@ export namespace highlights {
 
 }
 
+export namespace search {
+
+    export class SearchResult {
+        filePath: string;
+        lineNumber: number;
+        matchOffset: number;
+        context: string;
+
+        static createFrom(source: any = {}) {
+            return new SearchResult(source);
+        }
+
+        constructor(source: any = {}) {
+            if ('string' === typeof source) source = JSON.parse(source);
+            this.filePath = source["filePath"];
+            this.lineNumber = source["lineNumber"];
+            this.matchOffset = source["matchOffset"];
+            this.context = source["context"];
+        }
+    }
+
+}
+
 export namespace types {
 	
 	export class FileNode {
