@@ -7,8 +7,9 @@
   import ControlStrip from './lib/components/ControlStrip.svelte';
   import SettingsPanel from './lib/components/SettingsPanel.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
+  import MruOverlay from './lib/components/MruOverlay.svelte';
   import { loadFileTree, rootPath, type FileNode } from './lib/stores/files';
-  import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, updateTabContentById, setStreamActive, tabs } from './lib/stores/tabs';
+  import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, updateTabContentById, setStreamActive, openStreamTab, tabs, mruOrder } from './lib/stores/tabs';
   import { loadSettings } from './lib/stores/settings';
   import { readFile } from './lib/stores/files';
   import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen } from './lib/stores/ui';
@@ -28,6 +29,11 @@
   }
 
   let navVisible = $state(false);
+  let mruCycling = $state(false);
+  let mruShowOverlay = $state(false);
+  let mruCycleIndex = $state(0);
+  let mruTabList: Array<{id: string; name: string}> = $state([]);
+  let mruOverlayTimer: ReturnType<typeof setTimeout> | null = null;
   let pipeTabId: string | null = null;
 
   function handleFileClick(node: FileNode) {
@@ -156,9 +162,38 @@
         return;
       }
 
-      if (e.ctrlKey && (e.key === 'Tab' || e.key === 'PageDown' || e.key === 'PageUp')) {
+      if (e.ctrlKey && (e.key === 'Tab' || e.code === 'Tab')) {
         e.preventDefault();
-        if (e.shiftKey || e.key === 'PageUp') {
+        if (!mruCycling) {
+          const order = get(mruOrder);
+          const currentTabs = get(tabs);
+          mruTabList = order
+            .map(id => {
+              const tab = currentTabs.find(t => t.id === id);
+              return tab ? { id: tab.id, name: tab.name } : null;
+            })
+            .filter((t): t is { id: string; name: string } => t !== null);
+          if (mruTabList.length < 2) return;
+          mruCycling = true;
+          mruShowOverlay = false;
+          mruCycleIndex = e.shiftKey ? mruTabList.length - 1 : 1;
+          if (mruOverlayTimer) clearTimeout(mruOverlayTimer);
+          mruOverlayTimer = setTimeout(() => { mruShowOverlay = true; }, 150);
+        } else {
+          mruShowOverlay = true;
+          if (mruOverlayTimer) { clearTimeout(mruOverlayTimer); mruOverlayTimer = null; }
+          if (e.shiftKey) {
+            mruCycleIndex = (mruCycleIndex - 1 + mruTabList.length) % mruTabList.length;
+          } else {
+            mruCycleIndex = (mruCycleIndex + 1) % mruTabList.length;
+          }
+        }
+        return;
+      }
+
+      if (e.ctrlKey && (e.key === 'PageDown' || e.key === 'PageUp')) {
+        e.preventDefault();
+        if (e.key === 'PageUp') {
           prevTab();
         } else {
           nextTab();
@@ -209,6 +244,14 @@
       }
 
       if (e.key === 'Escape') {
+        if (mruCycling) {
+          if (mruOverlayTimer) { clearTimeout(mruOverlayTimer); mruOverlayTimer = null; }
+          mruCycling = false;
+          mruShowOverlay = false;
+          mruCycleIndex = 0;
+          mruTabList = [];
+          return;
+        }
         // Priority chain: focus mode > active stream > nav panel
         if (get(focusMode)) {
           toggleFocusMode();
@@ -227,7 +270,22 @@
       }
     }
 
-    document.addEventListener('keydown', handleKeydown);
+    document.addEventListener('keydown', handleKeydown, true);
+
+    function handleKeyup(e: KeyboardEvent) {
+      if (e.key === 'Control' && mruCycling) {
+        if (mruOverlayTimer) { clearTimeout(mruOverlayTimer); mruOverlayTimer = null; }
+        const selectedTab = mruTabList[mruCycleIndex];
+        if (selectedTab) {
+          activeTabId.set(selectedTab.id);
+        }
+        mruCycling = false;
+        mruShowOverlay = false;
+        mruCycleIndex = 0;
+        mruTabList = [];
+      }
+    }
+    document.addEventListener('keyup', handleKeyup);
 
     function handleClickOutsideSettings(e: MouseEvent) {
       const target = e.target as HTMLElement;
@@ -239,7 +297,8 @@
     document.addEventListener('click', handleClickOutsideSettings);
 
     return () => {
-      document.removeEventListener('keydown', handleKeydown);
+      document.removeEventListener('keydown', handleKeydown, true);
+      document.removeEventListener('keyup', handleKeyup);
       document.removeEventListener('click', handleClickOutsideSettings);
     };
   });
@@ -298,6 +357,8 @@
 </div>
 
 <CommandPalette />
+
+<MruOverlay tabs={mruTabList} selectedIndex={mruCycleIndex} visible={mruShowOverlay} />
 
 <style>
   .reader.focus {

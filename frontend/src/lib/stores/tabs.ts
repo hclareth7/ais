@@ -13,6 +13,14 @@ export interface Tab {
 
 export const tabs = writable<Tab[]>([]);
 export const activeTabId = writable<string | null>(null);
+export const mruOrder = writable<string[]>([]);
+
+function pushToMruFront(id: string): void {
+  mruOrder.update(order => {
+    const filtered = order.filter(tid => tid !== id);
+    return [id, ...filtered];
+  });
+}
 
 export const activeTab = derived(
   [tabs, activeTabId],
@@ -43,6 +51,8 @@ export async function openTab(path: string, name: string): Promise<void> {
 }
 
 export function closeTab(id: string): void {
+  mruOrder.update(order => order.filter(tid => tid !== id));
+
   tabs.update(t => {
     const idx = t.findIndex(tab => tab.id === id);
     if (idx === -1) return t;
@@ -51,12 +61,13 @@ export function closeTab(id: string): void {
 
     const currentActive = get(activeTabId);
     if (currentActive === id) {
-      if (newTabs.length === 0) {
-        activeTabId.set(null);
-      } else if (idx < newTabs.length) {
-        activeTabId.set(newTabs[idx].id);
+      const currentMru = get(mruOrder);
+      if (currentMru.length > 0) {
+        activeTabId.set(currentMru[0]);
+      } else if (newTabs.length > 0) {
+        activeTabId.set(newTabs[0].id);
       } else {
-        activeTabId.set(newTabs[newTabs.length - 1].id);
+        activeTabId.set(null);
       }
     }
 
@@ -132,4 +143,32 @@ export function updateTabContentById(id: string, content: string): void {
   tabs.update(t => t.map(tab =>
     tab.id === id ? { ...tab, content } : tab
   ));
+}
+
+// Subscribe to activeTabId changes to maintain MRU order.
+// This handles cases like clicking a tab in the TabBar.
+activeTabId.subscribe(id => {
+  if (id !== null) {
+    const current = get(mruOrder);
+    if (current[0] !== id) {
+      pushToMruFront(id);
+    }
+  }
+});
+
+// Swap between the two most recently used tabs.
+export function mruSwitch(): void {
+  const order = get(mruOrder);
+  if (order.length >= 2) {
+    activeTabId.set(order[1]);
+  }
+}
+
+// Returns tabs ordered by most recently used.
+export function getMruTabs(): Tab[] {
+  const order = get(mruOrder);
+  const currentTabs = get(tabs);
+  return order
+    .map(id => currentTabs.find(t => t.id === id))
+    .filter((t): t is Tab => t !== undefined);
 }
