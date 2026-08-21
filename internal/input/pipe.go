@@ -119,6 +119,17 @@ func (p *PipeReader) Start(ctx context.Context) error {
 			p.callback(scanner.Text() + "\n")
 		}
 
+		if err := scanner.Err(); err != nil {
+			select {
+			case <-ctx.Done():
+				f.Close()
+				return nil
+			default:
+			}
+			f.Close()
+			return fmt.Errorf("reading pipe: %w", err)
+		}
+
 		p.setFile(nil)
 		f.Close()
 	}

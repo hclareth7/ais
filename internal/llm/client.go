@@ -11,6 +11,7 @@ import (
 
 	"github.com/anthropics/anthropic-sdk-go"
 	"github.com/anthropics/anthropic-sdk-go/option"
+	"github.com/anthropics/anthropic-sdk-go/vertex"
 )
 
 // Client wraps the Anthropic SDK client and provides streaming with
@@ -35,6 +36,36 @@ func NewClient(apiKey string, model string) *Client {
 		apiClient: c,
 		model:     model,
 	}
+}
+
+// NewVertexClient creates a client that routes through Google Cloud Vertex AI.
+// Auth uses Application Default Credentials (ADC) — run `gcloud auth application-default login`.
+func NewVertexClient(ctx context.Context, region string, projectID string, model string) (client *Client, err error) {
+	if model == "" {
+		model = DefaultModel
+	}
+	if region == "" {
+		return nil, fmt.Errorf("vertex region is required")
+	}
+	if projectID == "" {
+		return nil, fmt.Errorf("vertex project ID is required")
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			client = nil
+			err = fmt.Errorf("vertex auth failed: %v", r)
+		}
+	}()
+
+	c := anthropic.NewClient(
+		vertex.WithGoogleAuth(ctx, region, projectID),
+	)
+
+	return &Client{
+		apiClient: c,
+		model:     model,
+	}, nil
 }
 
 // newClientWithBaseURL creates a client pointing at a custom base URL.
@@ -123,7 +154,7 @@ func (c *Client) Stream(ctx context.Context, req StreamRequest, emit func(Stream
 				buf.WriteString(d.Text)
 				if batchTimer == nil {
 					batchTimer = time.AfterFunc(
-						time.Duration(batchIntervalMs)*time.Millisecond,
+						time.Duration(BatchIntervalMs)*time.Millisecond,
 						func() {
 							mu.Lock()
 							flush()
@@ -197,6 +228,7 @@ func classifyError(err error) *StreamError {
 	// Anthropic API errors (HTTP status-based)
 	var apierr *anthropic.Error
 	if errors.As(err, &apierr) {
+		fmt.Fprintf(os.Stderr, "llm: API error (HTTP %d): %s\n", apierr.StatusCode, apierr.Error())
 		switch apierr.StatusCode {
 		case 401:
 			return &StreamError{
@@ -209,9 +241,13 @@ func classifyError(err error) *StreamError {
 				Message: "rate limit exceeded",
 			}
 		default:
+			msg := fmt.Sprintf("API error (HTTP %d)", apierr.StatusCode)
+			if body := apierr.RawJSON(); body != "" {
+				msg = fmt.Sprintf("API error (HTTP %d): %s", apierr.StatusCode, body)
+			}
 			return &StreamError{
 				Code:    ErrCodeAPI,
-				Message: fmt.Sprintf("API error (HTTP %d)", apierr.StatusCode),
+				Message: msg,
 			}
 		}
 	}

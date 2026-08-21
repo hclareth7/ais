@@ -53,6 +53,70 @@ const md = new MarkdownIt({
   }
 });
 
-export function renderMarkdown(source: string): string {
-  return md.render(source);
+// ── Heading IDs (Task 1.5b) ──
+function slugify(text: string): string {
+  return text.toLowerCase().replace(/[^\w\s-]/g, '').replace(/\s+/g, '-').replace(/-+/g, '-').trim();
+}
+
+md.core.ruler.push('heading_ids', (state) => {
+  for (const token of state.tokens) {
+    if (token.type === 'heading_open') {
+      const nextToken = state.tokens[state.tokens.indexOf(token) + 1];
+      if (nextToken && nextToken.type === 'inline' && nextToken.content) {
+        token.attrSet('id', slugify(nextToken.content));
+      }
+    }
+  }
+});
+
+// ── External Link Indicators (Task 1.6) ──
+const defaultLinkOpen = md.renderer.rules.link_open || function(tokens: any[], idx: number, options: any, _env: any, self: any) {
+  return self.renderToken(tokens, idx, options);
+};
+
+md.renderer.rules.link_open = function(tokens: any[], idx: number, options: any, env: any, self: any) {
+  const href = String(tokens[idx].attrGet('href') ?? '');
+  if (href && (href.startsWith('http://') || href.startsWith('https://'))) {
+    tokens[idx].attrSet('data-external', 'true');
+    tokens[idx].attrSet('target', '_blank');
+    tokens[idx].attrSet('rel', 'noopener noreferrer');
+  }
+  return defaultLinkOpen(tokens, idx, options, env, self);
+};
+
+// ── Image URL Rewriting (Task 2.2) ──
+const defaultImageRule = md.renderer.rules.image || function(tokens: any[], idx: number, options: any, _env: any, self: any) {
+  return self.renderToken(tokens, idx, options);
+};
+
+md.renderer.rules.image = function(tokens: any[], idx: number, options: any, env: any, self: any) {
+  const token = tokens[idx];
+  const src = String(token.attrGet('src') ?? '');
+
+  if (src && !src.startsWith('http://') && !src.startsWith('https://') && !src.startsWith('data:')) {
+    const basePath: string = (env && env.basePath) ? String(env.basePath) : '';
+    let resolvedPath: string;
+    if (src.startsWith('/')) {
+      resolvedPath = src;
+    } else if (basePath) {
+      const dir = basePath.includes('/') ? basePath.substring(0, basePath.lastIndexOf('/')) : '';
+      resolvedPath = dir ? `${dir}/${src}` : src;
+    } else {
+      resolvedPath = src;
+    }
+    // Normalize path segments
+    const parts = resolvedPath.split('/');
+    const normalized: string[] = [];
+    for (const p of parts) {
+      if (p === '..') normalized.pop();
+      else if (p !== '.' && p !== '') normalized.push(p);
+    }
+    token.attrSet('src', `/local/${normalized.join('/')}`);
+  }
+
+  return defaultImageRule(tokens, idx, options, env, self);
+};
+
+export function renderMarkdown(source: string, basePath?: string): string {
+  return md.render(source, { basePath });
 }

@@ -6,12 +6,32 @@ export const theme = writable<ThemeMode>('system');
 
 export async function loadSettings(): Promise<void> {
   try {
-    const { GetTheme } = await import('../../../wailsjs/go/main/App');
+    const { GetTheme, GetConfig } = await import('../../../wailsjs/go/main/App');
     const t = await GetTheme();
     if (t === 'light' || t === 'dark' || t === 'system') {
       theme.set(t);
     }
     applyTheme(get(theme));
+
+    // Load UI settings from config
+    try {
+      const cfg: any = await GetConfig();
+      const { opacity, zoomLevel, readingWidth, readerRadius, backgroundMode } = await import('./ui');
+      if (cfg.opacity) opacity.set(cfg.opacity);
+      if (cfg.zoomLevel) zoomLevel.set(cfg.zoomLevel);
+      if (cfg.readingWidth) readingWidth.set(cfg.readingWidth);
+      if (cfg.readerRadius) {
+        readerRadius.set(cfg.readerRadius);
+        document.documentElement.style.setProperty('--reader-radius', `${cfg.readerRadius}px`);
+      }
+      if (cfg.backgroundMode) backgroundMode.set(cfg.backgroundMode);
+      // Apply opacity
+      if (cfg.opacity) {
+        document.documentElement.style.setProperty('--surface-opacity', String(cfg.opacity / 100));
+      }
+    } catch (err) {
+      console.error('Failed to load UI settings:', err);
+    }
   } catch (err) {
     console.error('Failed to load settings:', err);
     applyTheme('system');

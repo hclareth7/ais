@@ -14,7 +14,7 @@
   --surface-solid: #121418;
   --surface-solid-rgb: 18, 20, 24;
   --surface-elevated: rgba(24, 27, 32, 0.92);
-  --surface-opacity: 0.75;
+  --surface-opacity: 1;
 
   --text-primary: #F5F7FA;
   --text-secondary: #B6BCC6;
@@ -68,6 +68,25 @@
 
   --reader-radius: 20px;
   --reading-max-width: 720px;
+
+  /* Image tokens */
+  --img-error-bg: rgba(255, 255, 255, 0.04);
+  --img-error-text: var(--text-tertiary);
+
+  /* Highlight colors */
+  --hl-yellow-bg: rgba(250, 204, 21, 0.16);
+  --hl-green-bg: rgba(34, 197, 94, 0.16);
+  --hl-blue-bg: rgba(96, 165, 250, 0.16);
+  --hl-pink-bg: rgba(244, 114, 182, 0.16);
+  --hl-purple-bg: rgba(168, 85, 247, 0.16);
+  --hl-orange-bg: rgba(251, 146, 60, 0.16);
+
+  --hl-yellow-dot: #FACC15;
+  --hl-green-dot: #22C55E;
+  --hl-blue-dot: #60A5FA;
+  --hl-pink-dot: #F472B6;
+  --hl-purple-dot: #A855F7;
+  --hl-orange-dot: #FB923C;
 }
 
 /* ── Light Mode ── */
@@ -119,6 +138,25 @@
   --icon-stroke: #4B5563;
   --icon-active: #3B6CE7;
   --warning-dim: rgba(217, 119, 6, 0.08);
+
+  /* Image tokens */
+  --img-error-bg: rgba(0, 0, 0, 0.03);
+  --img-error-text: var(--text-tertiary);
+
+  /* Highlight colors */
+  --hl-yellow-bg: rgba(250, 204, 21, 0.24);
+  --hl-green-bg: rgba(34, 197, 94, 0.22);
+  --hl-blue-bg: rgba(96, 165, 250, 0.22);
+  --hl-pink-bg: rgba(244, 114, 182, 0.22);
+  --hl-purple-bg: rgba(168, 85, 247, 0.22);
+  --hl-orange-bg: rgba(251, 146, 60, 0.22);
+
+  --hl-yellow-dot: #CA8A04;
+  --hl-green-dot: #16A34A;
+  --hl-blue-dot: #2563EB;
+  --hl-pink-dot: #DB2777;
+  --hl-purple-dot: #9333EA;
+  --hl-orange-dot: #EA580C;
 }
 
 /* ── Base ── */
@@ -608,4 +646,23 @@ body {
   z-index: 28;
   transition: opacity 0.15s;
   font-family: inherit;
+}
+
+/* Highlight marks */
+mark[data-highlight] {
+  border-radius: 3px;
+  padding: 1px 0;
+  cursor: pointer;
+}
+
+mark[data-highlight="yellow"] { background: var(--hl-yellow-bg); }
+mark[data-highlight="green"] { background: var(--hl-green-bg); }
+mark[data-highlight="blue"] { background: var(--hl-blue-bg); }
+mark[data-highlight="pink"] { background: var(--hl-pink-bg); }
+mark[data-highlight="purple"] { background: var(--hl-purple-bg); }
+mark[data-highlight="orange"] { background: var(--hl-orange-bg); }
+
+mark[data-highlight]:focus-visible {
+  outline: 2px solid var(--border-focus);
+  outline-offset: 2px;
 }

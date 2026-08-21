@@ -3,12 +3,14 @@ package main
 import (
 	"context"
 	"fmt"
+	neturl "net/url"
 	"os"
 	"path/filepath"
 	"strings"
 	"sync"
 
 	"github.com/hclareth7/ais/internal/config"
+	"github.com/hclareth7/ais/internal/highlights"
 	"github.com/hclareth7/ais/internal/input"
 	"github.com/hclareth7/ais/internal/llm"
 	"github.com/hclareth7/ais/internal/platform"
@@ -18,20 +20,40 @@ import (
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
 )
 
-type App struct {
-	ctx          context.Context
-	rootPath     string
-	cfgMgr       *config.Manager
-	watcher      *watcher.Watcher
-	pipeReader   *input.PipeReader
-	streamCancel context.CancelFunc // nil when no stream active
-	streamMu     sync.Mutex         // guards streamCancel
+// UISettings holds UI-related configuration that can be saved in bulk.
+type UISettings struct {
+	ZoomLevel      int    `json:"zoomLevel"`
+	Opacity        int    `json:"opacity"`
+	ReadingWidth   int    `json:"readingWidth"`
+	ReaderRadius   int    `json:"readerRadius"`
+	BackgroundMode string `json:"backgroundMode"`
 }
 
-func NewApp(rootPath string) *App {
+type App struct {
+	ctx            context.Context
+	rootPath       string
+	rootMu         sync.RWMutex       // guards rootPath
+	initialFile    string
+	cfgMgr         *config.Manager
+	watcher        *watcher.Watcher
+	pipeReader     *input.PipeReader
+	highlightStore *highlights.Store
+	streamCancel   context.CancelFunc // nil when no stream active
+	streamMu       sync.Mutex         // guards streamCancel
+}
+
+func NewApp(rootPath, initialFile string) *App {
 	return &App{
-		rootPath: rootPath,
+		rootPath:    rootPath,
+		initialFile: initialFile,
 	}
+}
+
+// getRootPath returns the current root path in a thread-safe manner.
+func (a *App) getRootPath() string {
+	a.rootMu.RLock()
+	defer a.rootMu.RUnlock()
+	return a.rootPath
 }
 
 func (a *App) startup(ctx context.Context) {
@@ -42,13 +64,17 @@ func (a *App) startup(ctx context.Context) {
 		fmt.Fprintf(os.Stderr, "warning: failed to load config: %v\n", err)
 	}
 
-	if a.rootPath != "" {
+	rootPath := a.getRootPath()
+
+	if rootPath != "" {
 		a.cfgMgr.Update(func(c *config.Config) {
-			c.LastOpenedPath = a.rootPath
+			c.LastOpenedPath = rootPath
 		})
 	}
 
-	w, err := watcher.New(a.rootPath, func(event watcher.WatchEvent) {
+	a.highlightStore = highlights.NewStore(filepath.Join(rootPath, ".ais", "highlights"))
+
+	w, err := watcher.New(rootPath, func(event watcher.WatchEvent) {
 		if event.IsCreate {
 			wailsRuntime.EventsEmit(a.ctx, "file:created", event.Path)
 		} else {
@@ -85,22 +111,29 @@ func (a *App) shutdown(ctx context.Context) {
 }
 
 func (a *App) GetFileTree() (*types.FileNode, error) {
-	return scanner.ScanDirectory(a.rootPath)
+	return scanner.ScanDirectory(a.getRootPath())
 }
 
 func (a *App) ReadFile(relativePath string) (string, error) {
-	absPath, err := filepath.Abs(filepath.Join(a.rootPath, relativePath))
+	root := a.getRootPath()
+	absPath, err := filepath.Abs(filepath.Join(root, relativePath))
 	if err != nil {
 		return "", fmt.Errorf("invalid path: %w", err)
 	}
-	if !strings.HasPrefix(absPath, a.rootPath+string(os.PathSeparator)) && absPath != a.rootPath {
+	if !strings.HasPrefix(absPath, root+string(os.PathSeparator)) && absPath != root {
 		return "", fmt.Errorf("path outside root: %s", relativePath)
 	}
 	return scanner.ReadFileContent(absPath)
 }
 
+// GetRootPath returns the current root directory path. Thread-safe.
 func (a *App) GetRootPath() string {
-	return a.rootPath
+	return a.getRootPath()
+}
+
+// GetInitialFile returns the file path passed as a CLI argument, if any.
+func (a *App) GetInitialFile() string {
+	return a.initialFile
 }
 
 func (a *App) OpenFolder() (string, error) {
@@ -121,6 +154,10 @@ func (a *App) SetRootPath(path string) error {
 	if err != nil {
 		return fmt.Errorf("invalid path: %w", err)
 	}
+	absPath, err = filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return fmt.Errorf("resolve symlinks: %w", err)
+	}
 	info, err := os.Stat(absPath)
 	if err != nil {
 		return fmt.Errorf("path not found: %w", err)
@@ -133,7 +170,11 @@ func (a *App) SetRootPath(path string) error {
 		a.watcher.Stop()
 	}
 
+	a.rootMu.Lock()
 	a.rootPath = absPath
+	a.rootMu.Unlock()
+
+	a.highlightStore.SetRoot(filepath.Join(absPath, ".ais", "highlights"))
 
 	a.cfgMgr.Update(func(c *config.Config) {
 		c.LastOpenedPath = absPath
@@ -189,7 +230,7 @@ func (a *App) SetCornerRadius(radius float64) {
 }
 
 // StartStream begins streaming a Claude API response. It opens an HTTP connection
-// to the Anthropic API and emits llm:chunk, llm:done, and llm:error events as
+// to the Anthropic API (or Vertex AI) and emits llm:chunk, llm:done, and llm:error events as
 // content arrives. Only one stream may be active at a time.
 func (a *App) StartStream(prompt string) error {
 	a.streamMu.Lock()
@@ -198,19 +239,34 @@ func (a *App) StartStream(prompt string) error {
 		return fmt.Errorf("a stream is already active")
 	}
 
-	apiKey, err := llm.GetAPIKey()
-	if err != nil {
-		a.streamMu.Unlock()
-		return fmt.Errorf("no API key configured: %w", err)
-	}
-
-	// Resolve model from config; fall back to Sonnet (quality-first default).
-	model := a.cfgMgr.Get().SelectedModel
+	cfg := a.cfgMgr.Get()
+	model := cfg.SelectedModel
 	if model == "" {
 		model = llm.ModelSonnet
 	}
 
-	client := llm.NewClient(apiKey, model)
+	provider := cfg.Provider
+	if provider == "" {
+		provider = llm.ProviderAnthropic
+	}
+
+	var client *llm.Client
+	if provider == llm.ProviderVertex {
+		var err error
+		client, err = llm.NewVertexClient(a.ctx, cfg.VertexRegion, cfg.VertexProject, model)
+		if err != nil {
+			a.streamMu.Unlock()
+			return fmt.Errorf("vertex configuration error: %w", err)
+		}
+	} else {
+		apiKey, err := llm.GetAPIKey()
+		if err != nil {
+			a.streamMu.Unlock()
+			return fmt.Errorf("no API key configured: %w", err)
+		}
+		client = llm.NewClient(apiKey, model)
+	}
+
 	ctx, cancel := context.WithCancel(a.ctx)
 	a.streamCancel = cancel
 	a.streamMu.Unlock()
@@ -271,9 +327,18 @@ func (a *App) SetAPIKey(key string) error {
 	return llm.SetAPIKey(key)
 }
 
-// HasAPIKey returns whether an API key is configured in any storage location.
-// It never exposes the key value — only a boolean status.
+// HasAPIKey returns whether the AI backend is ready. For Anthropic provider,
+// checks if an API key is configured. For Vertex AI, checks if project and
+// region are set (ADC is handled by the SDK at request time).
 func (a *App) HasAPIKey() bool {
+	cfg := a.cfgMgr.Get()
+	provider := cfg.Provider
+	if provider == "" {
+		provider = llm.ProviderAnthropic
+	}
+	if provider == llm.ProviderVertex {
+		return cfg.VertexProject != "" && cfg.VertexRegion != ""
+	}
 	return llm.HasAPIKey()
 }
 
@@ -286,6 +351,11 @@ func (a *App) DeleteAPIKey() error {
 // by cost (cheapest first).
 func (a *App) GetAvailableModels() []string {
 	return llm.AvailableModels
+}
+
+// GetVertexRegions returns the list of Vertex AI regions where Claude is available.
+func (a *App) GetVertexRegions() []string {
+	return llm.VertexRegions
 }
 
 // StartPipe creates a named pipe (FIFO) and begins reading from it. Each line
@@ -317,4 +387,78 @@ func (a *App) StopPipe() error {
 		a.pipeReader = nil
 	}
 	return nil
+}
+
+// validateExternalURL checks that a URL is valid and uses http or https.
+func validateExternalURL(urlStr string) error {
+	parsed, err := neturl.Parse(urlStr)
+	if err != nil || parsed.Host == "" {
+		return fmt.Errorf("invalid URL")
+	}
+	scheme := strings.ToLower(parsed.Scheme)
+	if scheme != "http" && scheme != "https" {
+		return fmt.Errorf("unsupported URL scheme: %s", scheme)
+	}
+	return nil
+}
+
+// OpenExternalURL opens a URL in the user's default browser. Only http
+// and https schemes are allowed; all other schemes are rejected.
+func (a *App) OpenExternalURL(url string) error {
+	if err := validateExternalURL(url); err != nil {
+		return err
+	}
+	wailsRuntime.BrowserOpenURL(a.ctx, url)
+	return nil
+}
+
+// SaveUISettings persists UI-related settings (zoom, opacity, reading width,
+// reader radius, background mode) to the config file.
+func (a *App) SaveUISettings(s UISettings) error {
+	a.cfgMgr.Update(func(c *config.Config) {
+		c.ZoomLevel = s.ZoomLevel
+		c.Opacity = s.Opacity
+		c.ReadingWidth = s.ReadingWidth
+		c.ReaderRadius = s.ReaderRadius
+		c.BackgroundMode = s.BackgroundMode
+	})
+	return a.cfgMgr.Save()
+}
+
+// GetHighlights returns all highlights for a given file path. The filePath
+// is validated against the root path to prevent traversal attacks.
+func (a *App) GetHighlights(filePath string) ([]highlights.Highlight, error) {
+	root := a.getRootPath()
+	absPath, err := filepath.Abs(filepath.Join(root, filePath))
+	if err != nil {
+		return nil, fmt.Errorf("invalid path: %w", err)
+	}
+	if !strings.HasPrefix(absPath, root+string(os.PathSeparator)) && absPath != root {
+		return nil, fmt.Errorf("path outside root: %s", filePath)
+	}
+	return a.highlightStore.Load(filePath)
+}
+
+// AddHighlight adds a highlight to the store. The highlight's FilePath
+// is validated against the root path.
+func (a *App) AddHighlight(h highlights.Highlight) error {
+	root := a.getRootPath()
+	absPath, err := filepath.Abs(filepath.Join(root, h.FilePath))
+	if err != nil {
+		return fmt.Errorf("invalid path: %w", err)
+	}
+	if !strings.HasPrefix(absPath, root+string(os.PathSeparator)) && absPath != root {
+		return fmt.Errorf("path outside root: %s", h.FilePath)
+	}
+	return a.highlightStore.Add(h)
+}
+
+// RemoveHighlight removes a highlight by ID from the given file.
+func (a *App) RemoveHighlight(filePath, highlightID string) error {
+	return a.highlightStore.Remove(filePath, highlightID)
+}
+
+// ClearHighlights removes all highlights for a given file.
+func (a *App) ClearHighlights(filePath string) error {
+	return a.highlightStore.Clear(filePath)
 }

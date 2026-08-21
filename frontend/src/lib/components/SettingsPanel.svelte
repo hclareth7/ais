@@ -4,7 +4,7 @@
     opacity, setOpacity,
     readerRadius, setReaderRadius, RADIUS_OPTIONS,
     backgroundMode, setBackgroundMode,
-    readingWidth
+    readingWidth, setReadingWidth
   } from '../stores/ui';
   import { theme, setTheme, type ThemeMode } from '../stores/settings';
 
@@ -26,6 +26,15 @@
   let showApiKey = $state(false);
   let selectedModel = $state('claude-sonnet-5');
   let apiKeySaving = $state(false);
+  let provider = $state('anthropic');
+  let vertexProject = $state('');
+  let vertexRegion = $state('us-east5');
+  let vertexRegions: string[] = $state([]);
+
+  const providers: { key: string; label: string }[] = [
+    { key: 'anthropic', label: 'Anthropic' },
+    { key: 'vertex', label: 'Vertex AI' },
+  ];
 
   const modelTiers: { id: string; label: string }[] = [
     { id: 'claude-haiku-4-5', label: 'Haiku' },
@@ -37,7 +46,7 @@
   $effect(() => {
     if ($settingsOpen) {
       checkApiKey();
-      loadSelectedModel();
+      loadSettings();
     }
   });
 
@@ -50,14 +59,16 @@
     }
   }
 
-  async function loadSelectedModel() {
+  async function loadSettings() {
     try {
       const App = await import('../../../wailsjs/go/main/App');
       const cfg = await App.GetConfig();
-      if (cfg.selectedModel) {
-        selectedModel = cfg.selectedModel;
-      }
-    } catch { /* use default */ }
+      if (cfg.selectedModel) selectedModel = cfg.selectedModel;
+      if (cfg.provider) provider = cfg.provider;
+      if (cfg.vertexProject) vertexProject = cfg.vertexProject;
+      if (cfg.vertexRegion) vertexRegion = cfg.vertexRegion;
+      vertexRegions = await App.GetVertexRegions();
+    } catch { /* use defaults */ }
   }
 
   async function saveApiKey() {
@@ -97,9 +108,33 @@
     }
   }
 
+  async function setProvider(p: string) {
+    provider = p;
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      const cfg = await App.GetConfig();
+      cfg.provider = p;
+      await App.UpdateConfig(cfg);
+    } catch (err) {
+      console.error('Failed to save provider:', err);
+    }
+  }
+
+  async function saveVertexConfig() {
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      const cfg = await App.GetConfig();
+      cfg.vertexProject = vertexProject.trim();
+      cfg.vertexRegion = vertexRegion.trim();
+      await App.UpdateConfig(cfg);
+    } catch (err) {
+      console.error('Failed to save Vertex config:', err);
+    }
+  }
+
   function handleWidthInput(e: Event) {
     const target = e.target as HTMLInputElement;
-    readingWidth.set(parseInt(target.value));
+    setReadingWidth(parseInt(target.value));
   }
 
   function handleOpacityInput(e: Event) {
@@ -213,47 +248,98 @@
       AI
       <span
         class="status-dot"
-        class:configured={apiKeyConfigured}
-        title={apiKeyConfigured ? 'Connected' : 'No API key'}
+        class:configured={provider === 'vertex' || apiKeyConfigured}
+        title={provider === 'vertex' ? 'Vertex AI (ADC)' : apiKeyConfigured ? 'Connected' : 'No API key'}
       ></span>
     </div>
 
     <div class="sr">
       <span class="sr-label">
-        <svg viewBox="0 0 20 20"><rect x="3" y="9" width="14" height="8" rx="2"/><path d="M6 9V6a4 4 0 018 0v3"/></svg>
-        API Key
+        <svg viewBox="0 0 20 20"><path d="M3 10a7 7 0 1114 0 7 7 0 01-14 0z"/><path d="M10 3v14M3 10h14" opacity=".3"/></svg>
+        Provider
       </span>
-      <div class="api-key-group">
-        {#if apiKeyConfigured && !apiKeyInput}
-          <span class="api-key-status">Configured</span>
-          <button class="api-key-clear" onclick={clearApiKey} title="Remove API key" aria-label="Remove API key">
-            <svg viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>
-          </button>
-        {:else}
-          <input
-            class="api-key-input"
-            type={showApiKey ? 'text' : 'password'}
-            bind:value={apiKeyInput}
-            placeholder="sk-ant-..."
-            autocomplete="off"
-            spellcheck="false"
-            aria-label="Anthropic API key"
-          />
-          <button class="api-key-toggle" onclick={() => showApiKey = !showApiKey} title={showApiKey ? 'Hide key' : 'Show key'} aria-label={showApiKey ? 'Hide API key' : 'Show API key'}>
-            <svg viewBox="0 0 14 14">
-              {#if showApiKey}
-                <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/>
-              {:else}
-                <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/><line x1="2" y1="12" x2="12" y2="2"/>
-              {/if}
-            </svg>
-          </button>
-          <button class="api-key-save" onclick={saveApiKey} disabled={!apiKeyInput.trim() || apiKeySaving} aria-label="Save API key">
-            Save
-          </button>
-        {/if}
+      <div class="provider-sel" role="radiogroup" aria-label="Provider selection">
+        {#each providers as p (p.key)}
+          <button
+            class="prov-opt"
+            class:on={provider === p.key}
+            role="radio"
+            aria-checked={provider === p.key}
+            onclick={() => setProvider(p.key)}
+          >{p.label}</button>
+        {/each}
       </div>
     </div>
+
+    {#if provider === 'anthropic'}
+      <div class="sr">
+        <span class="sr-label">
+          <svg viewBox="0 0 20 20"><rect x="3" y="9" width="14" height="8" rx="2"/><path d="M6 9V6a4 4 0 018 0v3"/></svg>
+          API Key
+        </span>
+        <div class="api-key-group">
+          {#if apiKeyConfigured && !apiKeyInput}
+            <span class="api-key-status">Configured</span>
+            <button class="api-key-clear" onclick={clearApiKey} title="Remove API key" aria-label="Remove API key">
+              <svg viewBox="0 0 14 14"><line x1="3" y1="3" x2="11" y2="11"/><line x1="11" y1="3" x2="3" y2="11"/></svg>
+            </button>
+          {:else}
+            <input
+              class="api-key-input"
+              type={showApiKey ? 'text' : 'password'}
+              bind:value={apiKeyInput}
+              placeholder="sk-ant-..."
+              autocomplete="off"
+              spellcheck="false"
+              aria-label="Anthropic API key"
+            />
+            <button class="api-key-toggle" onclick={() => showApiKey = !showApiKey} title={showApiKey ? 'Hide key' : 'Show key'} aria-label={showApiKey ? 'Hide API key' : 'Show API key'}>
+              <svg viewBox="0 0 14 14">
+                {#if showApiKey}
+                  <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/>
+                {:else}
+                  <path d="M1 7s2.5-4 6-4 6 4 6 4-2.5 4-6 4-6-4-6-4z"/><circle cx="7" cy="7" r="2"/><line x1="2" y1="12" x2="12" y2="2"/>
+                {/if}
+              </svg>
+            </button>
+            <button class="api-key-save" onclick={saveApiKey} disabled={!apiKeyInput.trim() || apiKeySaving} aria-label="Save API key">
+              Save
+            </button>
+          {/if}
+        </div>
+      </div>
+    {:else}
+      <div class="sr vertex-field">
+        <span class="sr-label">
+          <svg viewBox="0 0 20 20"><path d="M4 4h12v12H4z" fill="none"/><path d="M10 4v12M4 10h12" opacity=".3"/></svg>
+          Project ID
+        </span>
+        <input
+          class="vertex-input"
+          type="text"
+          bind:value={vertexProject}
+          placeholder="my-gcp-project"
+          onblur={saveVertexConfig}
+          aria-label="GCP Project ID"
+        />
+      </div>
+      <div class="sr vertex-field">
+        <span class="sr-label">
+          <svg viewBox="0 0 20 20"><circle cx="10" cy="10" r="7" fill="none"/><path d="M10 3v14" opacity=".3"/></svg>
+          Region
+        </span>
+        <select
+          class="vertex-select"
+          bind:value={vertexRegion}
+          onchange={saveVertexConfig}
+          aria-label="Vertex AI Region"
+        >
+          {#each vertexRegions as r (r)}
+            <option value={r}>{r}</option>
+          {/each}
+        </select>
+      </div>
+    {/if}
 
     <div class="sr">
       <span class="sr-label">
@@ -275,7 +361,11 @@
     </div>
 
     <div class="ai-help-text">
-      Your API key is stored securely in your OS keychain. It is never saved to the config file.
+      {#if provider === 'vertex'}
+        Uses Google Cloud Application Default Credentials. Run <code>gcloud auth application-default login</code>.
+      {:else}
+        Your API key is stored securely in your OS keychain. It is never saved to the config file.
+      {/if}
     </div>
   </div>
 {/if}
@@ -614,6 +704,87 @@
 
   .api-key-clear:hover svg {
     stroke: var(--danger);
+  }
+
+  /* Provider selector — reuses theme selector pattern */
+  .provider-sel {
+    display: flex;
+    gap: 4px;
+    background: var(--hover-bg);
+    border-radius: 9px;
+    padding: 3px;
+  }
+
+  .prov-opt {
+    padding: 5px 12px;
+    font-size: 12px;
+    color: var(--text-tertiary);
+    border-radius: 7px;
+    cursor: pointer;
+    border: none;
+    background: 0;
+    font-family: inherit;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .prov-opt:hover {
+    color: var(--text-secondary);
+  }
+
+  .prov-opt.on {
+    background: var(--surface-solid);
+    color: var(--text-primary);
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.15);
+  }
+
+  /* Vertex AI config inputs */
+  .vertex-input {
+    width: 140px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.12s;
+  }
+
+  .vertex-input:focus {
+    border-color: var(--border-focus);
+  }
+
+  .vertex-input::placeholder {
+    color: var(--text-ghost);
+  }
+
+  .vertex-select {
+    width: 140px;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    cursor: pointer;
+    transition: border-color 0.12s;
+    -webkit-appearance: none;
+    appearance: none;
+  }
+
+  .vertex-select:focus {
+    border-color: var(--border-focus);
+  }
+
+  .ai-help-text code {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 10px;
+    background: var(--hover-bg);
+    padding: 1px 4px;
+    border-radius: 3px;
   }
 
   /* Model selector — reuses theme selector pattern */

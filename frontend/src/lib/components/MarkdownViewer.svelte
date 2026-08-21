@@ -1,9 +1,14 @@
 <script lang="ts">
   import { renderMarkdown } from '../markdown/renderer';
-  import { activeTab, saveScrollPos } from '../stores/tabs';
+  import { activeTab, saveScrollPos, openTab } from '../stores/tabs';
   import { activeStream, streamState, type StreamError } from '../stores/stream';
   import { settingsOpen } from '../stores/ui';
+  import { applyHighlights, clearHighlightMarks, type HighlightData } from '../highlights/renderer';
+  import { captureSelection } from '../highlights/selection';
+  import { highlightsForFile, loadHighlightsForFile, addHighlight, removeHighlight, lastUsedColor } from '../stores/highlights';
+  import { get } from 'svelte/store';
   import WelcomeScreen from './WelcomeScreen.svelte';
+  import ImageLightbox from './ImageLightbox.svelte';
 
   let { zoomLevel = 100, readingWidth = 720 }: {
     zoomLevel?: number;
@@ -11,7 +16,7 @@
   } = $props();
 
   let viewerEl: HTMLElement | undefined = $state();
-  let renderedHtml = $derived($activeTab ? renderMarkdown($activeTab.content) : '');
+  let renderedHtml = $derived($activeTab ? renderMarkdown($activeTab.content, $activeTab.type === 'file' ? $activeTab.path : undefined) : '');
 
   let previousTabId: string | null = $state(null);
 
@@ -22,12 +27,26 @@
   let showResumePill = $derived(isStreaming && userScrolledUp);
   let caretFading = $state(false);
 
+  // Lightbox state
+  let lightboxSrc = $state('');
+  let lightboxAlt = $state('');
+  let lightboxOpen = $state(false);
+
+  // Quick action bar state
+  let quickActionPos = $state<{x: number, y: number} | null>(null);
+  let showQuickAction = $state(false);
+  let cachedSelection: {anchorText: string, prefixContext: string, suffixContext: string} | null = null;
+
   // Stream error/cancelled state for current tab
   let currentStreamState = $derived.by(() => {
     const stream = $activeStream;
     if (!stream || !$activeTab || stream.tabId !== $activeTab.id) return null;
     return stream;
   });
+
+  function escapeHtml(text: string): string {
+    return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
 
   $effect(() => {
     const currentId = $activeTab?.id ?? null;
@@ -78,6 +97,102 @@
     }
   });
 
+  // Image error fallback (Task 2.3)
+  $effect(() => {
+    const _html = renderedHtml;
+    if (!viewerEl) return;
+    requestAnimationFrame(() => {
+      if (!viewerEl) return;
+      const imgs = viewerEl.querySelectorAll('img:not([data-error-handled])');
+      imgs.forEach(img => {
+        img.setAttribute('data-error-handled', 'true');
+        (img as HTMLImageElement).onerror = () => {
+          const alt = (img as HTMLImageElement).alt || 'Image unavailable';
+          const placeholder = document.createElement('div');
+          placeholder.className = 'md-image-error';
+          placeholder.innerHTML = `<svg viewBox="0 0 24 24" width="32" height="32"><rect x="3" y="3" width="18" height="18" rx="2" fill="none" stroke="currentColor" stroke-width="1.5"/><circle cx="8.5" cy="8.5" r="1.5" fill="currentColor"/><path d="M21 15l-5-5L5 21" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg><span>${escapeHtml(alt)}</span>`;
+          img.replaceWith(placeholder);
+        };
+      });
+    });
+  });
+
+  // Load highlights for current file tab (Task 3.6a)
+  $effect(() => {
+    const tab = $activeTab;
+    if (tab?.type === 'file' && tab.path) {
+      loadHighlightsForFile(tab.path);
+    }
+  });
+
+  // Apply highlights after render (Task 3.6b)
+  $effect(() => {
+    const highlights = $highlightsForFile;
+    const _html = renderedHtml;
+    if (!viewerEl || !$activeTab || $activeTab.type !== 'file') return;
+    requestAnimationFrame(() => {
+      if (viewerEl) applyHighlights(viewerEl, highlights);
+    });
+  });
+
+  // Listen for text selection changes (Task 3.6c)
+  $effect(() => {
+    document.addEventListener('selectionchange', handleSelectionChange);
+    return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  });
+
+  function handleSelectionChange() {
+    const sel = window.getSelection();
+    if (!sel || sel.isCollapsed || !viewerEl?.contains(sel.anchorNode)) {
+      showQuickAction = false;
+      cachedSelection = null;
+      return;
+    }
+    if (isStreaming) { showQuickAction = false; cachedSelection = null; return; }
+    if ($activeTab?.type !== 'file') { showQuickAction = false; cachedSelection = null; return; }
+
+    const node = sel.anchorNode?.nodeType === Node.TEXT_NODE ? sel.anchorNode.parentElement : sel.anchorNode as HTMLElement;
+    if (node?.closest('pre, code')) { showQuickAction = false; cachedSelection = null; return; }
+
+    const captured = captureSelection(viewerEl!);
+    if (captured) cachedSelection = captured;
+
+    const range = sel.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+    quickActionPos = { x: rect.left + rect.width / 2, y: rect.top - 8 };
+    showQuickAction = true;
+  }
+
+  async function createHighlight(color: string) {
+    if (!viewerEl || !$activeTab || $activeTab.type !== 'file') return;
+    const sel = cachedSelection;
+    if (!sel) return;
+
+    lastUsedColor.set(color);
+    const hl: HighlightData = {
+      id: `hl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      filePath: $activeTab.path,
+      anchorText: sel.anchorText,
+      prefixContext: sel.prefixContext,
+      suffixContext: sel.suffixContext,
+      color,
+      createdAt: new Date().toISOString(),
+    };
+    cachedSelection = null;
+    await addHighlight(hl);
+    window.getSelection()?.removeAllRanges();
+    showQuickAction = false;
+  }
+
+  function handleMarkClick(e: MouseEvent) {
+    const mark = (e.target as HTMLElement).closest('mark[data-highlight]');
+    if (!mark || !$activeTab?.path) return;
+    const hlId = mark.getAttribute('data-highlight-id');
+    if (hlId) {
+      removeHighlight($activeTab.path, hlId);
+    }
+  }
+
   function handleScroll() {
     if (!viewerEl || !isStreaming) return;
     const atBottom = viewerEl.scrollHeight - viewerEl.scrollTop - viewerEl.clientHeight < 50;
@@ -126,6 +241,57 @@
       e.preventDefault();
       e.stopPropagation();
       handleCodeCopy(copyBtn);
+      return;
+    }
+
+    // Image lightbox (Task 2.7)
+    const img = target.closest('img') as HTMLImageElement | null;
+    if (img && !img.closest('.md-image-error')) {
+      lightboxSrc = img.src;
+      lightboxAlt = img.alt || '';
+      lightboxOpen = true;
+      return;
+    }
+
+    // Link interception (Tasks 1.2-1.5)
+    const link = target.closest('a') as HTMLAnchorElement | null;
+    if (link) {
+      e.preventDefault();
+      const href = link.getAttribute('href');
+      if (!href) return;
+      if (href.startsWith('http://') || href.startsWith('https://')) {
+        // External: open in browser via Go binding
+        import('../../../wailsjs/go/main/App').then((app: any) => {
+          app.OpenExternalURL(href);
+        }).catch((err: any) => console.error('Failed to open URL:', err));
+      } else if (href.startsWith('#')) {
+        // Anchor: scroll to heading
+        const id = href.slice(1);
+        const el = viewerEl?.querySelector(`[id="${CSS.escape(id)}"]`);
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      } else if (/\.(?:md|markdown)(?:#|$)/i.test(href)) {
+        // Local markdown: open as tab
+        const currentPath = $activeTab?.path ?? '';
+        const currentDir = currentPath.includes('/') ? currentPath.substring(0, currentPath.lastIndexOf('/')) : '';
+        const resolved = currentDir ? `${currentDir}/${href.split('#')[0]}` : href.split('#')[0];
+        // Normalize path (remove ../ segments)
+        const parts = resolved.split('/');
+        const normalized: string[] = [];
+        for (const p of parts) {
+          if (p === '..') normalized.pop();
+          else if (p !== '.') normalized.push(p);
+        }
+        const finalPath = normalized.join('/');
+        const filename = finalPath.split('/').pop() ?? finalPath;
+        openTab(finalPath, filename);
+      }
+      return;
+    }
+
+    // Highlight mark click (Task 3.6d)
+    const mark = target.closest('mark[data-highlight]') as HTMLElement | null;
+    if (mark) {
+      handleMarkClick(e);
       return;
     }
 
@@ -227,6 +393,27 @@
       Resume following
     </button>
   {/if}
+
+  <ImageLightbox src={lightboxSrc} alt={lightboxAlt} open={lightboxOpen} onclose={() => lightboxOpen = false} />
+
+  {#if showQuickAction && quickActionPos}
+    <div
+      class="quick-action"
+      style="left: {quickActionPos.x}px; top: {quickActionPos.y}px;"
+      role="toolbar"
+      aria-label="Highlight text"
+    >
+      {#each ['yellow', 'green', 'blue', 'pink', 'purple', 'orange'] as color}
+        <button
+          class="qa-dot"
+          style="background: var(--hl-{color}-dot);"
+          title="Highlight {color}"
+          aria-label="Highlight {color}"
+          onmousedown={(e) => { e.preventDefault(); createHighlight(color); }}
+        ></button>
+      {/each}
+    </div>
+  {/if}
 {:else}
   <WelcomeScreen />
 {/if}
@@ -267,7 +454,7 @@
     transition: max-width 0.2s;
   }
 
-  /* ── Headings ── */
+  /* -- Headings -- */
   .doc-inner :global(h1) {
     font-size: 36px;
     font-weight: 700;
@@ -351,7 +538,7 @@
     margin-left: 8px;
   }
 
-  /* ── Body ── */
+  /* -- Body -- */
   .doc-inner :global(p) {
     margin-bottom: 16px;
     color: var(--text-secondary);
@@ -389,7 +576,7 @@
     margin-bottom: 0;
   }
 
-  /* ── Code ── */
+  /* -- Code -- */
   .doc-inner :global(pre.code-block) {
     margin: 16px 0 24px;
     padding: 0;
@@ -478,7 +665,7 @@
     border-radius: 4px;
   }
 
-  /* ── Misc ── */
+  /* -- Misc -- */
   .doc-inner :global(hr) {
     border: none;
     height: 1px;
@@ -504,13 +691,43 @@
     font-weight: 600;
   }
 
+  /* -- Images (Task 2.4) -- */
   .doc-inner :global(img) {
     max-width: 100%;
-    border-radius: 6px;
-    margin: 8px auto 20px;
+    border-radius: 12px;
+    margin: 24px auto;
     display: block;
+    border: 1px solid var(--border);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    cursor: zoom-in;
+    transition: border-color 0.12s;
   }
 
+  .doc-inner :global(img:hover) {
+    border-color: var(--border-hover);
+  }
+
+  .doc-inner :global(.md-image-error) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 32px;
+    margin: 24px auto;
+    background: var(--img-error-bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    color: var(--img-error-text);
+    font-size: 13px;
+    max-width: 400px;
+  }
+
+  .doc-inner :global(.md-image-error svg) {
+    opacity: 0.4;
+  }
+
+  /* -- Links -- */
   .doc-inner :global(a) {
     color: var(--accent-text);
     text-decoration: none;
@@ -518,6 +735,15 @@
 
   .doc-inner :global(a:hover) {
     text-decoration: underline;
+  }
+
+  /* External link indicator (Task 1.6) */
+  .doc-inner :global(a[data-external])::after {
+    content: '\2197';
+    font-size: 0.7em;
+    opacity: 0.35;
+    color: var(--text-tertiary);
+    margin-left: 2px;
   }
 
   .doc-inner :global(strong) {
@@ -530,7 +756,7 @@
     color: var(--text-tertiary);
   }
 
-  /* ── Syntax Highlighting ── */
+  /* -- Syntax Highlighting -- */
   .doc-inner :global(.hljs-keyword),
   .doc-inner :global(.hljs-selector-tag) {
     color: var(--code-kw);
@@ -583,5 +809,41 @@
 
   .doc-inner :global(.hljs-params) {
     color: var(--text-secondary);
+  }
+
+  /* -- Quick Action Bar (Task 3.6e) -- */
+  .quick-action {
+    position: fixed;
+    transform: translate(-50%, -100%);
+    display: flex;
+    gap: 6px;
+    padding: 6px 10px;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    z-index: 50;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    animation: qa-in 120ms ease-out;
+  }
+
+  .qa-dot {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(255, 255, 255, 0.2);
+    cursor: pointer;
+    transition: transform 0.12s;
+    padding: 0;
+  }
+
+  .qa-dot:hover {
+    transform: scale(1.3);
+  }
+
+  @keyframes qa-in {
+    from { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
+    to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
   }
 </style>

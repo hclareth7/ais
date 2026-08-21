@@ -42,6 +42,12 @@ const (
 	ErrCodeAPI       = "api"
 )
 
+// Provider identifiers for API backends.
+const (
+	ProviderAnthropic = "anthropic"
+	ProviderVertex    = "vertex"
+)
+
 // Model identifiers for supported Claude models.
 // These match the model IDs from the Anthropic API.
 const (
@@ -57,7 +63,16 @@ var AvailableModels = []string{ModelHaiku, ModelSonnet, ModelOpus}
 // MaxTokens is the maximum number of output tokens per stream request.
 const MaxTokens = 4096
 
+// VertexRegions lists regions where Claude is available on Vertex AI.
+var VertexRegions = []string{
+	"us-east5",
+	"us-central1",
+	"europe-west1",
+	"europe-west4",
+	"asia-southeast1",
+}
+
 // batchInterval is the duration between chunk emissions to the frontend.
 // Multiple SSE events arriving within this window are concatenated into
 // a single StreamChunk, keeping the frontend event rate at ~20/sec.
-const batchIntervalMs = 50
+const BatchIntervalMs = 50

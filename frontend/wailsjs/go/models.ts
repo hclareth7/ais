@@ -1,5 +1,5 @@
 export namespace config {
-	
+
 	export class Config {
 	    theme: string;
 	    sshKeyPaths: string[];
@@ -9,6 +9,14 @@ export namespace config {
 	    sidebarWidth: number;
 	    recentPaths: string[];
 	    selectedModel: string;
+	    provider: string;
+	    vertexProject: string;
+	    vertexRegion: string;
+	    zoomLevel: number;
+	    opacity: number;
+	    readingWidth: number;
+	    readerRadius: number;
+	    backgroundMode: string;
 
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -24,6 +32,68 @@ export namespace config {
 	        this.sidebarWidth = source["sidebarWidth"];
 	        this.recentPaths = source["recentPaths"];
 	        this.selectedModel = source["selectedModel"];
+	        this.provider = source["provider"];
+	        this.vertexProject = source["vertexProject"];
+	        this.vertexRegion = source["vertexRegion"];
+	        this.zoomLevel = source["zoomLevel"];
+	        this.opacity = source["opacity"];
+	        this.readingWidth = source["readingWidth"];
+	        this.readerRadius = source["readerRadius"];
+	        this.backgroundMode = source["backgroundMode"];
+	    }
+	}
+
+}
+
+export namespace main {
+
+	export class UISettings {
+	    zoomLevel: number;
+	    opacity: number;
+	    readingWidth: number;
+	    readerRadius: number;
+	    backgroundMode: string;
+
+	    static createFrom(source: any = {}) {
+	        return new UISettings(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.zoomLevel = source["zoomLevel"];
+	        this.opacity = source["opacity"];
+	        this.readingWidth = source["readingWidth"];
+	        this.readerRadius = source["readerRadius"];
+	        this.backgroundMode = source["backgroundMode"];
+	    }
+	}
+
+}
+
+export namespace highlights {
+
+	export class Highlight {
+	    id: string;
+	    filePath: string;
+	    anchorText: string;
+	    prefixContext: string;
+	    suffixContext: string;
+	    color: string;
+	    createdAt: string;
+
+	    static createFrom(source: any = {}) {
+	        return new Highlight(source);
+	    }
+
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.id = source["id"];
+	        this.filePath = source["filePath"];
+	        this.anchorText = source["anchorText"];
+	        this.prefixContext = source["prefixContext"];
+	        this.suffixContext = source["suffixContext"];
+	        this.color = source["color"];
+	        this.createdAt = source["createdAt"];
 	    }
 	}
 

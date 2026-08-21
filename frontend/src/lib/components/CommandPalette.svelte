@@ -14,6 +14,7 @@
   let aiPrompt = $state('');
   let selectedModel = $state('claude-sonnet-5');
   let hasApiKey = $state(false);
+  let currentProvider = $state('anthropic');
 
   const modelOptions = [
     { id: 'claude-haiku-4-5', label: 'Haiku' },
@@ -83,26 +84,31 @@
     return items.slice(0, 12);
   });
 
+  let wasOpen = $state(false);
   $effect(() => {
-    if ($commandPaletteOpen && inputEl) {
-      requestAnimationFrame(() => inputEl?.focus());
+    const isOpen = $commandPaletteOpen;
+    if (isOpen && !wasOpen) {
       query = '';
       selectedIdx = 0;
       activeCategory = 'all';
       aiPrompt = '';
-      // Check API key status on open
+      requestAnimationFrame(() => inputEl?.focus());
       import('../../../wailsjs/go/main/App')
-        .then(app => app.HasAPIKey())
-        .then(has => { hasApiKey = has; })
+        .then(async (app) => {
+          hasApiKey = await app.HasAPIKey();
+          const cfg = await app.GetConfig();
+          currentProvider = cfg.provider && cfg.provider !== '' ? cfg.provider : 'anthropic';
+        })
         .catch(() => { hasApiKey = false; });
     }
+    wasOpen = isOpen;
   });
 
   // Focus prompt textarea when switching to AI tab
   $effect(() => {
-    if (activeCategory === 'ai' && promptEl) {
-      requestAnimationFrame(() => promptEl?.focus());
+    if (activeCategory === 'ai') {
       setPrompting();
+      requestAnimationFrame(() => promptEl?.focus());
     }
   });
 
@@ -230,37 +236,28 @@
           <button
             class="pal-tab"
             class:on={activeCategory === cat.key}
-            onclick={() => activeCategory = cat.key}
+            onclick={() => { activeCategory = cat.key; }}
           >{cat.label}</button>
         {/each}
       </div>
 
       {#if activeCategory === 'ai'}
         <div class="pal-ai">
-          {#if !hasApiKey}
-            <div class="pal-ai-nokey">
-              <span class="pal-ai-dot warning"></span>
-              <div>
-                <div class="pal-ai-msg">No API key configured.</div>
-                <div class="pal-ai-hint">Add your API key in Settings to start a conversation.</div>
-              </div>
-            </div>
-          {:else}
-            <textarea
-              bind:this={promptEl}
-              bind:value={aiPrompt}
-              placeholder="Type your question..."
-              class="pal-ai-textarea"
-              rows="3"
-              spellcheck="false"
-              aria-label="AI prompt"
-            ></textarea>
-            <div class="pal-ai-bar">
-              <button class="pal-model-pill" onclick={cycleModel} title="Click to change model" aria-label="Selected model: {selectedModel}">
-                {modelOptions.find(m => m.id === selectedModel)?.label ?? 'Sonnet'}
-              </button>
-            </div>
-          {/if}
+          <textarea
+            bind:this={promptEl}
+            bind:value={aiPrompt}
+            placeholder="Type your question..."
+            class="pal-ai-textarea"
+            rows="3"
+            spellcheck="false"
+            aria-label="AI prompt"
+          ></textarea>
+          <div class="pal-ai-bar">
+            <span class="pal-ai-provider">{currentProvider === 'vertex' ? 'Vertex AI' : 'Anthropic'}</span>
+            <button class="pal-model-pill" onclick={cycleModel} title="Click to change model" aria-label="Selected model: {selectedModel}">
+              {modelOptions.find(m => m.id === selectedModel)?.label ?? 'Sonnet'}
+            </button>
+          </div>
         </div>
       {:else}
         <div class="pal-results" role="listbox">
@@ -293,7 +290,7 @@
       {/if}
 
       <div class="pal-footer">
-        {#if activeCategory === 'ai' && hasApiKey}
+        {#if activeCategory === 'ai'}
           <span><kbd>&crarr;</kbd> send</span>
           <span><kbd>shift+&crarr;</kbd> newline</span>
           <span><kbd>esc</kbd> close</span>
@@ -512,6 +509,11 @@
     display: flex;
     justify-content: flex-end;
     padding-top: 6px;
+  }
+
+  .pal-ai-provider {
+    font-size: 11px;
+    color: var(--text-ghost);
   }
 
   .pal-model-pill {

@@ -307,7 +307,7 @@ func TestStream_BatchingBehavior(t *testing.T) {
 		flusher.Flush()
 
 		// Send many rapid events (should be batched)
-		for i := 0; i < 10; i++ {
+		for i := range 10 {
 			fmt.Fprint(w, textDeltaEvent(fmt.Sprintf("chunk%d ", i)))
 			flusher.Flush()
 		}
@@ -349,7 +349,7 @@ func TestStream_BatchingBehavior(t *testing.T) {
 		fullText.WriteString(chunk.Text)
 	}
 
-	for i := 0; i < 10; i++ {
+	for i := range 10 {
 		expected := fmt.Sprintf("chunk%d ", i)
 		if !strings.Contains(fullText.String(), expected) {
 			t.Errorf("missing content %q in accumulated text", expected)

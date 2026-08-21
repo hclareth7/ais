@@ -30,12 +30,24 @@ export function GetTheme() {
   return window['go']['main']['App']['GetTheme']();
 }
 
+export function GetVertexRegions() {
+  return window['go']['main']['App']['GetVertexRegions']();
+}
+
+export function HasAPIKey() {
+  return window['go']['main']['App']['HasAPIKey']();
+}
+
 export function OpenFolder() {
   return window['go']['main']['App']['OpenFolder']();
 }
 
 export function ReadFile(arg1) {
   return window['go']['main']['App']['ReadFile'](arg1);
+}
+
+export function SetAPIKey(arg1) {
+  return window['go']['main']['App']['SetAPIKey'](arg1);
 }
 
 export function SetCornerRadius(arg1) {
@@ -48,14 +60,6 @@ export function SetRootPath(arg1) {
 
 export function SetTheme(arg1) {
   return window['go']['main']['App']['SetTheme'](arg1);
-}
-
-export function HasAPIKey() {
-  return window['go']['main']['App']['HasAPIKey']();
-}
-
-export function SetAPIKey(arg1) {
-  return window['go']['main']['App']['SetAPIKey'](arg1);
 }
 
 export function StartPipe(arg1) {
@@ -72,4 +76,32 @@ export function StopPipe() {
 
 export function UpdateConfig(arg1) {
   return window['go']['main']['App']['UpdateConfig'](arg1);
+}
+
+export function OpenExternalURL(arg1) {
+  return window['go']['main']['App']['OpenExternalURL'](arg1);
+}
+
+export function SaveUISettings(arg1) {
+  return window['go']['main']['App']['SaveUISettings'](arg1);
+}
+
+export function GetHighlights(arg1) {
+  return window['go']['main']['App']['GetHighlights'](arg1);
+}
+
+export function AddHighlight(arg1) {
+  return window['go']['main']['App']['AddHighlight'](arg1);
+}
+
+export function RemoveHighlight(arg1, arg2) {
+  return window['go']['main']['App']['RemoveHighlight'](arg1, arg2);
+}
+
+export function ClearHighlights(arg1) {
+  return window['go']['main']['App']['ClearHighlights'](arg1);
+}
+
+export function GetInitialFile() {
+  return window['go']['main']['App']['GetInitialFile']();
 }

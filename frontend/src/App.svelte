@@ -52,6 +52,14 @@
     await loadFileTree();
 
     try {
+      const App: any = await import('../wailsjs/go/main/App');
+      const initialFile = await App.GetInitialFile();
+      if (initialFile) {
+        openTab(initialFile, initialFile.split('/').pop() ?? initialFile);
+      }
+    } catch {}
+
+    try {
       const { EventsOn } = await import('../wailsjs/runtime/runtime');
       EventsOn('file:changed', async (changedPath: string) => {
         const currentTabs = get(tabs);

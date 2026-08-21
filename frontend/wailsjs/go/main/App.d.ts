@@ -17,6 +17,8 @@ export function GetRootPath():Promise<string>;
 
 export function GetTheme():Promise<string>;
 
+export function GetVertexRegions():Promise<Array<string>>;
+
 export function HasAPIKey():Promise<boolean>;
 
 export function OpenFolder():Promise<string>;
@@ -38,3 +40,17 @@ export function StartStream(arg1:string):Promise<void>;
 export function StopPipe():Promise<void>;
 
 export function UpdateConfig(arg1:config.Config):Promise<void>;
+
+export function OpenExternalURL(arg1:string):Promise<void>;
+
+export function SaveUISettings(arg1:main.UISettings):Promise<void>;
+
+export function GetHighlights(arg1:string):Promise<Array<highlights.Highlight>>;
+
+export function AddHighlight(arg1:highlights.Highlight):Promise<void>;
+
+export function RemoveHighlight(arg1:string,arg2:string):Promise<void>;
+
+export function ClearHighlights(arg1:string):Promise<void>;
+
+export function GetInitialFile():Promise<string>;

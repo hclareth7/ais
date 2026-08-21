@@ -153,7 +153,7 @@ func TestMultipleWrites(t *testing.T) {
 	time.Sleep(50 * time.Millisecond)
 
 	// Write multiple separate messages.
-	for i := 0; i < 5; i++ {
+	for i := range 5 {
 		f, err := os.OpenFile(path, os.O_WRONLY, 0)
 		if err != nil {
 			t.Fatalf("open pipe for writing (iteration %d): %v", i, err)
