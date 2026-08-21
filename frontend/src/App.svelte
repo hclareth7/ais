@@ -36,6 +36,8 @@
   let mruTabList: Array<{id: string; name: string}> = $state([]);
   let mruOverlayTimer: ReturnType<typeof setTimeout> | null = null;
   let pipeTabId: string | null = null;
+  let langToast = $state('');
+  let langToastTimer: ReturnType<typeof setTimeout> | null = null;
 
   function handleFileClick(node: FileNode) {
     if (!node.isDir) {
@@ -149,6 +151,22 @@
       if (e.ctrlKey && (e.key === 'f' || e.key === 'F') && !e.shiftKey) {
         e.preventDefault();
         inFileSearchOpen.set(true);
+        return;
+      }
+
+      if (e.ctrlKey && e.key === ' ') {
+        e.preventDefault();
+        import('../wailsjs/go/main/App').then(async (App) => {
+          const cfg = await App.GetConfig();
+          const langs = cfg.translationLanguages;
+          if (!langs || langs.length < 2) return;
+          const nextIdx = (cfg.translationDefaultIndex + 1) % langs.length;
+          cfg.translationDefaultIndex = nextIdx;
+          await App.UpdateConfig(cfg);
+          if (langToastTimer) clearTimeout(langToastTimer);
+          langToast = langs[nextIdx].toUpperCase();
+          langToastTimer = setTimeout(() => { langToast = ''; }, 1500);
+        }).catch(() => {});
         return;
       }
 
@@ -374,7 +392,57 @@
 
 <MruOverlay tabs={mruTabList} selectedIndex={mruCycleIndex} visible={mruShowOverlay} />
 
+{#if langToast}
+  <div class="lang-toast" aria-live="polite">
+    <span class="lang-toast-label">Translation</span>
+    <span class="lang-toast-lang">{langToast}</span>
+  </div>
+{/if}
+
 <style>
+  .lang-toast {
+    position: fixed;
+    bottom: 80px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--surface-elevated);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    z-index: 60;
+    animation: lang-toast-in 150ms ease-out;
+    pointer-events: none;
+  }
+
+  .lang-toast-label {
+    font-size: 12px;
+    color: var(--text-tertiary);
+  }
+
+  .lang-toast-lang {
+    font-size: 14px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 700;
+    color: var(--accent-text);
+    background: var(--accent-dim);
+    padding: 2px 8px;
+    border-radius: 6px;
+  }
+
+  @keyframes lang-toast-in {
+    from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+    to { opacity: 1; transform: translateX(-50%) translateY(0); }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .lang-toast { animation: none; }
+  }
   .reader.focus {
     border-radius: 0;
     border-color: transparent;

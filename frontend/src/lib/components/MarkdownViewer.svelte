@@ -11,6 +11,7 @@
   import WelcomeScreen from './WelcomeScreen.svelte';
   import ImageLightbox from './ImageLightbox.svelte';
   import InFileSearch from './InFileSearch.svelte';
+  import TranslationPopover from './TranslationPopover.svelte';
 
   let { zoomLevel = 100, readingWidth = 720 }: {
     zoomLevel?: number;
@@ -42,6 +43,16 @@
   // Search highlight state
   let activeSearchQuery = $state<string | null>(null);
   let searchHighlightTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // Translation state
+  let translationVisible = $state(false);
+  let translationText = $state('');
+  let translationLang = $state('');
+  let translationLoading = $state(false);
+  let translationPos = $state<{x: number, y: number}>({x: 0, y: 0});
+  let translationIndex = $state(0);
+  let translationCache = $state<Map<string, string>>(new Map());
+  let translationSourceText = $state('');
 
   // In-file search state
   let inFileSearchVisible = $state(false);
@@ -151,6 +162,18 @@
   $effect(() => {
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
+  });
+
+  // Listen for T key to trigger translation
+  $effect(() => {
+    function handleTranslateKey(e: KeyboardEvent) {
+      if ((e.key === 't' || e.key === 'T') && !e.ctrlKey && !e.altKey && !e.metaKey && showQuickAction) {
+        e.preventDefault();
+        translateSelection();
+      }
+    }
+    document.addEventListener('keydown', handleTranslateKey);
+    return () => document.removeEventListener('keydown', handleTranslateKey);
   });
 
   // Search: scroll to match and highlight all occurrences (from Command Palette cross-file search)
@@ -320,15 +343,80 @@
     activeSearchQuery = null;
   }
 
+  async function translateSelection() {
+    if (!showQuickAction || !cachedSelection) return;
+
+    let cfg: any;
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      cfg = await App.GetConfig();
+    } catch { return; }
+
+    const langs: string[] = cfg.translationLanguages ?? ['es', 'en'];
+    if (langs.length === 0) return;
+
+    const sourceText = cachedSelection.anchorText;
+    if (!sourceText) return;
+
+    if (sourceText !== translationSourceText) {
+      translationCache = new Map();
+      translationSourceText = sourceText;
+      translationIndex = cfg.translationDefaultIndex ?? 0;
+    } else if (translationVisible) {
+      translationIndex = (translationIndex + 1) % langs.length;
+    }
+
+    const lang = langs[translationIndex % langs.length];
+    translationLang = lang;
+
+    if (quickActionPos) {
+      translationPos = { x: quickActionPos.x, y: quickActionPos.y + 30 };
+    }
+
+    const cached = translationCache.get(lang);
+    if (cached) {
+      translationText = cached;
+      translationVisible = true;
+      translationLoading = false;
+      return;
+    }
+
+    translationVisible = true;
+    translationLoading = true;
+    translationText = '';
+
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      const result = await App.TranslateText(sourceText, lang);
+      if (translationLang === lang) {
+        translationText = result;
+        translationCache.set(lang, result);
+        translationLoading = false;
+      }
+    } catch (err) {
+      if (translationLang === lang) {
+        translationText = 'Translation failed';
+        translationLoading = false;
+      }
+    }
+  }
+
+  function closeTranslation() {
+    translationVisible = false;
+    translationText = '';
+    translationLoading = false;
+  }
+
   function handleSelectionChange() {
     const sel = window.getSelection();
     if (!sel || sel.isCollapsed || !viewerEl?.contains(sel.anchorNode)) {
       showQuickAction = false;
       cachedSelection = null;
+      closeTranslation();
       return;
     }
-    if (isStreaming) { showQuickAction = false; cachedSelection = null; return; }
-    if ($activeTab?.type !== 'file') { showQuickAction = false; cachedSelection = null; return; }
+    if (isStreaming) { showQuickAction = false; cachedSelection = null; closeTranslation(); return; }
+    if ($activeTab?.type !== 'file') { showQuickAction = false; cachedSelection = null; closeTranslation(); return; }
 
     const node = sel.anchorNode?.nodeType === Node.TEXT_NODE ? sel.anchorNode.parentElement : sel.anchorNode as HTMLElement;
     if (node?.closest('pre, code')) { showQuickAction = false; cachedSelection = null; return; }
@@ -602,6 +690,15 @@
       {/each}
     </div>
   {/if}
+
+  <TranslationPopover
+    visible={translationVisible}
+    text={translationText}
+    language={translationLang}
+    loading={translationLoading}
+    position={translationPos}
+    onclose={closeTranslation}
+  />
 {:else}
   <WelcomeScreen />
 {/if}

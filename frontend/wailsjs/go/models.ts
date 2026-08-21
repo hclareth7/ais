@@ -17,6 +17,8 @@ export namespace config {
 	    readingWidth: number;
 	    readerRadius: number;
 	    backgroundMode: string;
+	    translationLanguages: string[];
+	    translationDefaultIndex: number;
 
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -40,6 +42,8 @@ export namespace config {
 	        this.readingWidth = source["readingWidth"];
 	        this.readerRadius = source["readerRadius"];
 	        this.backgroundMode = source["backgroundMode"];
+	        this.translationLanguages = source["translationLanguages"];
+	        this.translationDefaultIndex = source["translationDefaultIndex"];
 	    }
 	}
 

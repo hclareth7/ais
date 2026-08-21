@@ -22,6 +22,8 @@ func DefaultConfig() Config {
 		Opacity:         100,
 		ReadingWidth:    1000,
 		ReaderRadius:    20,
-		BackgroundMode:  "gradient",
+		BackgroundMode:          "gradient",
+		TranslationLanguages:    []string{"es", "en"},
+		TranslationDefaultIndex: 0,
 	}
 }

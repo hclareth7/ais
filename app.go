@@ -6,6 +6,7 @@ import (
 	neturl "net/url"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -424,6 +425,40 @@ func (a *App) SaveUISettings(s UISettings) error {
 		c.BackgroundMode = s.BackgroundMode
 	})
 	return a.cfgMgr.Save()
+}
+
+// TranslateText translates text to the specified target language using Claude Haiku.
+// The targetLang must be in the configured translationLanguages list.
+func (a *App) TranslateText(text string, targetLang string) (string, error) {
+	if text == "" {
+		return "", fmt.Errorf("text is empty")
+	}
+	if len(text) > 5000 {
+		return "", fmt.Errorf("text exceeds 5000 character limit")
+	}
+
+	cfg := a.cfgMgr.Get()
+	if !slices.Contains(cfg.TranslationLanguages, targetLang) {
+		return "", fmt.Errorf("language not in configured list")
+	}
+
+	var client *llm.Client
+	provider := cfg.Provider
+	if provider == llm.ProviderVertex {
+		var err error
+		client, err = llm.NewVertexClient(a.ctx, cfg.VertexRegion, cfg.VertexProject, llm.ModelHaiku)
+		if err != nil {
+			return "", fmt.Errorf("vertex configuration error: %w", err)
+		}
+	} else {
+		apiKey, err := llm.GetAPIKey()
+		if err != nil {
+			return "", fmt.Errorf("no API key configured")
+		}
+		client = llm.NewClient(apiKey, llm.ModelHaiku)
+	}
+
+	return client.Translate(a.ctx, text, targetLang)
 }
 
 // SearchFiles searches all markdown files in the root directory for the given query.

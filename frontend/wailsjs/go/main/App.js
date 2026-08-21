@@ -109,3 +109,7 @@ export function ClearHighlights(arg1) {
 export function GetInitialFile() {
   return window['go']['main']['App']['GetInitialFile']();
 }
+
+export function TranslateText(arg1, arg2) {
+  return window['go']['main']['App']['TranslateText'](arg1, arg2);
+}

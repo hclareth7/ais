@@ -24,7 +24,9 @@ type Config struct {
 	Opacity        int      `json:"opacity"`
 	ReadingWidth   int      `json:"readingWidth"`
 	ReaderRadius   int      `json:"readerRadius"`
-	BackgroundMode string   `json:"backgroundMode"`
+	BackgroundMode          string   `json:"backgroundMode"`
+	TranslationLanguages    []string `json:"translationLanguages"`
+	TranslationDefaultIndex int      `json:"translationDefaultIndex"`
 }
 
 type Manager struct {
@@ -80,6 +82,9 @@ func (m *Manager) Load() error {
 	}
 	if m.cfg.BackgroundMode == "" {
 		m.cfg.BackgroundMode = defaults.BackgroundMode
+	}
+	if len(m.cfg.TranslationLanguages) == 0 {
+		m.cfg.TranslationLanguages = defaults.TranslationLanguages
 	}
 	return nil
 }
