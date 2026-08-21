@@ -1,439 +1,796 @@
-# Tasks — LLM Streaming
+# ais — Complete Task Breakdown
 
-All tasks trace to requirements in `spec/requirements.md`. Tasks are ordered by dependency — each task builds on the previous.
+All 8 features decomposed into atomic tasks. Each task is self-contained, specifies exact file paths, and targets under 30 minutes of implementation.
 
----
+**References:** `spec/feature-plans.md`, `spec/feature-ux.md`, `spec/architecture-review.md`
 
-## Task 1: internal/llm package — Go backend
-
-**Traces to:** FR-1, FR-2, FR-4, FR-5, NFR-2
-
-**Files to create:**
-- `internal/llm/client.go`
-- `internal/llm/types.go`
-- `internal/llm/keystore.go`
-
-### 1.1 Types (types.go)
-
-Define the data types for streaming communication.
-
-```
-StreamRequest {
-    Prompt string
-    Model  string
-}
-
-StreamChunk {
-    Text        string
-    Done        bool
-    TotalTokens int
-}
-
-StreamError {
-    Code    string
-    Message string
-}
-```
-
-**Acceptance criteria:**
-- All types have JSON tags
-- StreamChunk is the payload for `llm:chunk` events
-- StreamError distinguishes network, auth, rate-limit, and cancellation errors
-- Types are in a separate file from client logic for clean imports
+**Architecture decisions incorporated** (from `spec/architecture-review.md`):
+- **DR-3:** Highlight storage mirrors directory structure, not SHA-256 filenames
+- **DR-4:** Watcher bug root cause is symlinks in rootPath; fix via `filepath.EvalSymlinks`
+- **DR-5:** Use field-specific `SaveUISettings` method, not full `UpdateConfig` replacement
+- **DR-6:** rootPath data race must be fixed before Features 2 and 3 (add `rootMu sync.RWMutex`)
+- **DR-7:** Use `GetInitialFile()` binding, not events, for initial file open (avoids race)
+- **S-6:** File server must allowlist MIME types (images only)
 
 ---
 
-### 1.2 Keystore (keystore.go)
+## Feature Index
 
-Implement API key storage with the resolution chain: env var > OS keychain > credentials file.
-
-**Acceptance criteria:**
-- `GetAPIKey() (string, error)` — resolves key from the chain in priority order
-- `SetAPIKey(key string) error` — stores in OS keychain, falls back to `~/.config/ais/credentials.json` with `0600` permissions
-- `HasAPIKey() bool` — returns true if any source in the chain has a key
-- `DeleteAPIKey() error` — removes from all storage locations
-- Resolution order: `ANTHROPIC_API_KEY` env > OS keychain (go-keyring, service: "ais", user: "api-key") > `~/.config/ais/credentials.json`
-- Credentials file format: `{"anthropic_api_key": "sk-..."}` with `0600` permissions
-- Key is NEVER logged, NEVER returned to frontend
-
-**New dependency:** `github.com/zalando/go-keyring`
-
----
-
-### 1.3 Client (client.go)
-
-Implement the streaming HTTP client using `anthropic-sdk-go`.
-
-**Acceptance criteria:**
-- `NewClient(apiKey string) *Client` — creates client with API key
-- `Stream(ctx context.Context, req StreamRequest, emit func(StreamChunk)) error` — streams response, calls emit callback for each batched chunk
-- Uses `context.WithCancel` for cancellation support
-- Batches SSE events at 50ms intervals before calling emit
-- Emits a final `StreamChunk{Done: true, TotalTokens: N}` on completion
-- Returns `StreamError` on failure with appropriate error code
-- Default model: `claude-sonnet-5`
-- Max tokens: 4096
-
-**New dependency:** `github.com/anthropics/anthropic-sdk-go`
+| # | Feature | Tasks | Phases |
+|---|---------|-------|--------|
+| P | Prerequisites (rootPath race, symlinks) | 2 | P1 |
+| 1 | External Link Handling | 7 | P2-P3 |
+| 2 | Image Support | 9 | P2-P5 |
+| 3 | Multi-Color Text Highlighting | 13 | P2-P5 |
+| 4 | File Watcher Bug Fix | 1 | P2 |
+| 5 | Default Opacity 100% | 2 | P0 |
+| 6 | Window Maximized by Default | 1 | P0 |
+| 7 | Persistent UI Config | 5 | P2-P3 |
+| 8 | CLI Open Specific File | 3 | P2-P3 |
+| **Total** | | **43** | |
 
 ---
 
-## Task 2: Wails bindings and App integration
+## Phase 0: Quick Fixes (no dependencies, all parallel)
 
-**Traces to:** FR-1, FR-3, FR-6, FR-7
+### Task 5.1: Change Default Opacity to 100%
 
-**Files to modify:**
-- `app.go` — add new methods and fields
+**Feature:** F5
+**File(s):** `frontend/src/lib/stores/ui.ts`
+**Change:** Line 10 — change `export const opacity = writable(75);` to `export const opacity = writable(100);`
+**Acceptance:**
+- Default opacity is 100 on fresh launch
+- Opacity slider in SettingsPanel shows 100%
+- Keyboard shortcuts (Ctrl+Shift++/-) still work
 
-### 2.1 App struct extension
+---
 
-Add fields for LLM state management.
+### Task 5.2: Update CSS Default Surface Opacity
 
+**Feature:** F5
+**File(s):** `frontend/src/style.css`
+**Change:** Line 14 in `:root` block — change `--surface-opacity: 0.75;` to `--surface-opacity: 1;`. Must match Task 5.1.
+**Acceptance:**
+- Reader surface fully opaque by default
+- Dynamic opacity via JS still works (`applyOpacity` sets `--surface-opacity`)
+
+---
+
+### Task 6.1: Start Window Maximized by Default
+
+**Feature:** F6
+**File(s):** `main.go`
+**Change:** Add `WindowStartState: options.Maximised,` to the `options.App` struct after `MinHeight` (line 81 area). Import already covers `options`.
+**Acceptance:**
+- Window opens maximized on Linux, macOS, Windows
+- User can restore via titlebar button
+- Width/Height (1200x800) remain as restored-window dimensions
+
+---
+
+## Phase 1: Prerequisites (sequential, before all feature work)
+
+### Task P.1: Fix rootPath Data Race (DR-6)
+
+**Feature:** Cross-cutting (prerequisite for F2, F3)
+**File(s):** `app.go`
+**Change:**
+1. Add `rootMu sync.RWMutex` field to `App` struct
+2. Add method:
+   ```go
+   func (a *App) getRootPath() string {
+       a.rootMu.RLock()
+       defer a.rootMu.RUnlock()
+       return a.rootPath
+   }
+   ```
+3. In `SetRootPath`: wrap `a.rootPath = absPath` with `a.rootMu.Lock()`/`Unlock()`
+4. Replace all direct `a.rootPath` reads with `a.getRootPath()` in: `GetFileTree`, `ReadFile`, `GetRootPath` (the public one delegates to `getRootPath`), `StartPipe`
+
+The file server handler (F2) will call `getRootPath()` from a separate HTTP goroutine, making this race real.
+**Acceptance:**
+- `go test -race ./...` passes
+- `getRootPath()` safe to call from any goroutine
+- `SetRootPath` holds write lock during mutation
+- All existing functionality unaffected
+
+---
+
+### Task P.2: Apply EvalSymlinks to rootPath (DR-4)
+
+**Feature:** F4 (prerequisite)
+**Depends on:** Task P.1
+**File(s):** `main.go`, `app.go`
+**Change:**
+1. `main.go` after line 58 (`filepath.Abs`): add `absPath, err = filepath.EvalSymlinks(absPath)` with error handling
+2. `app.go` `SetRootPath` after `filepath.Abs` (line 121): add `absPath, err = filepath.EvalSymlinks(absPath)` with error handling
+
+Fixes watcher bug: fsnotify reports resolved symlink paths while `filepath.Rel` uses unresolved root, producing incorrect relative paths.
+**Acceptance:**
+- Symlinked directories resolve to real path
+- Watcher events produce paths matching scanner output
+- Non-symlinked paths unaffected (EvalSymlinks is no-op for real paths)
+
+---
+
+## Phase 2: Backend Foundation (parallel within phase, after Phase 1)
+
+### Task 1.1: Add Go Method for External URL Opening
+
+**Feature:** F1
+**File(s):** `app.go`
+**Change:** Add `OpenExternalURL(url string) error`. Parse with `net/url.Parse()`. Whitelist `http` and `https` schemes only. Call `wailsRuntime.BrowserOpenURL(a.ctx, url)`. Add `neturl "net/url"` import.
+**Acceptance:**
+- http/https URLs open in default browser
+- javascript:, data:, file:, ftp: rejected
+- Malformed/empty URLs rejected
+- Wails auto-generates binding
+
+---
+
+### Task 1.7: Unit Tests for URL Validation
+
+**Feature:** F1
+**File(s):** New file `app_test.go`
+**Change:** Table-driven tests for `OpenExternalURL`: valid http/https, invalid schemes (javascript, data, file, ftp), empty string, malformed URLs, relative paths.
+**Acceptance:**
+- All edge cases covered
+- Tests pass with `go test ./...`
+
+---
+
+### Task 2.1: Create Local File Server Handler
+
+**Feature:** F2
+**Depends on:** Task P.1
+**File(s):** New file `internal/fileserver/handler.go`
+**Change:** Create `http.Handler` per DR-1. Constructor: `NewHandler(getRootPath func() string) *Handler`.
+
+Handler logic:
+1. Strip `/local/` prefix, URL-decode path
+2. Resolve via `filepath.Join(root, rel)` then `filepath.EvalSymlinks`
+3. Validate resolved path prefix (same as `ReadFile`)
+4. Check file exists, not directory, under 10MB
+5. **MIME type allowlist (S-6):** Only serve image types: `.png`, `.jpg`, `.jpeg`, `.gif`, `.svg`, `.webp`, `.bmp`, `.ico`. Reject all other extensions with 403.
+6. Set `Content-Type`, `X-Content-Type-Options: nosniff` on all responses
+7. For SVG: add `Content-Security-Policy: script-src 'none'; style-src 'unsafe-inline'` (DR-2)
+8. Return 404/403/413 for errors
+**Acceptance:**
+- Valid image paths: correct content + MIME
+- Non-image files (.env, .json, .go): 403
+- Path traversal (../): 403
+- Missing files: 404
+- Over 10MB: 413
+- SVG responses have CSP header
+
+---
+
+### Task 2.5: File Server Security Tests
+
+**Feature:** F2
+**Depends on:** Task 2.1
+**File(s):** New file `internal/fileserver/handler_test.go`
+**Change:** Tests using `httptest` and `t.TempDir()`:
+- Path traversal via `../` rejected (403)
+- Path traversal via `%2e%2e%2f` rejected (403)
+- Valid PNG: 200 + correct MIME
+- Valid SVG: 200 + CSP header
+- Non-image file (.json): 403
+- Missing file: 404
+- Directory: 404
+- Oversized file: 413
+- nosniff header present
+**Acceptance:**
+- All security vectors tested
+- `go test ./internal/fileserver/...` passes
+
+---
+
+### Task 2.6: Integrate File Server into Wails AssetServer
+
+**Feature:** F2
+**Depends on:** Task 2.1, Task P.1
+**File(s):** `main.go`
+**Change:** Import `internal/fileserver`. Create handler: `handler := fileserver.NewHandler(app.getRootPath)`. Wire into `AssetServer.Handler`:
 ```go
-type App struct {
-    // ... existing fields ...
-    llmClient    *llm.Client
-    streamCancel context.CancelFunc  // nil when no stream active
-    streamMu     sync.Mutex          // guards streamCancel
+AssetServer: &assetserver.Options{
+    Assets:  assets,
+    Handler: handler,
+},
+```
+Note: `app.getRootPath` (lowercase, unexported) is only available within the `main` package. If `app` is in package `main`, this works. Otherwise, use `app.GetRootPath`.
+**Acceptance:**
+- `/local/path/to/image.png` serves workspace files
+- After `SetRootPath`, images resolve from new root
+- Frontend assets unaffected
+
+---
+
+### Task 3.1: Create Highlight Storage Package
+
+**Feature:** F3
+**Depends on:** Task P.1
+**File(s):** New file `internal/highlights/highlights.go`
+**Change:** Per DR-3 — mirror directory structure (no SHA-256):
+- `Highlight` struct: ID, FilePath, AnchorText, PrefixContext, SuffixContext, Color, CreatedAt
+- `Store` struct: `baseDir string`, `mu sync.RWMutex`
+- `NewStore(baseDir string) *Store`
+- `SetRoot(baseDir string)` — for workspace switches
+- `Load(filePath string) ([]Highlight, error)` — loads `{baseDir}/{filePath}.json` (e.g., `docs/arch.md` -> `.ais/highlights/docs/arch.md.json`). Returns `[]Highlight{}` if missing.
+- `Save(filePath string, highlights []Highlight) error` — creates subdirs, writes JSON
+- `Add(h Highlight) error` — load, append, save
+- `Remove(filePath, highlightID string) error` — load, filter, save
+- `Clear(filePath string) error` — delete file
+
+Storage: `{rootPath}/.ais/highlights/`. Watcher already skips `.ais` (hidden dir rule at watcher.go line 66). Scanner already skips `.json` files.
+**Acceptance:**
+- Storage at `{rootPath}/.ais/highlights/`
+- File structure mirrors document paths
+- Empty load returns `[]Highlight{}`, not error
+- Subdirectories created automatically
+- File permissions 0644
+
+---
+
+### Task 3.8: Highlight Storage Tests
+
+**Feature:** F3
+**Depends on:** Task 3.1
+**File(s):** New file `internal/highlights/highlights_test.go`
+**Change:** Tests: empty load, save/load round-trip, add appends, remove by ID, remove non-existent returns error, clear deletes, nested paths create subdirs, SetRoot updates base.
+**Acceptance:**
+- `go test ./internal/highlights/...` passes
+- Uses `t.TempDir()`
+
+---
+
+### Task 3.2: Add Wails Bindings for Highlight CRUD
+
+**Feature:** F3
+**Depends on:** Task 3.1, Task P.1
+**File(s):** `app.go`
+**Change:**
+1. Add `highlightStore *highlights.Store` to App struct
+2. Initialize in `startup()`: `a.highlightStore = highlights.NewStore(filepath.Join(a.getRootPath(), ".ais", "highlights"))`
+3. Update `SetRootPath` to call `a.highlightStore.SetRoot(...)`
+4. Add four bound methods: `GetHighlights`, `AddHighlight`, `RemoveHighlight`, `ClearHighlights`
+5. Path validation: same prefix check as `ReadFile`
+**Acceptance:**
+- Four methods auto-bound by Wails
+- Path validation prevents traversal
+- Store re-initialized on workspace switch
+
+---
+
+### Task 7.1: Add UI Settings Fields to Go Config Struct
+
+**Feature:** F7
+**File(s):** `internal/config/config.go`, `internal/config/defaults.go`
+**Change:** Add five fields to `Config` struct:
+```go
+ZoomLevel      int    `json:"zoomLevel"`
+Opacity        int    `json:"opacity"`
+ReadingWidth   int    `json:"readingWidth"`
+ReaderRadius   int    `json:"readerRadius"`
+BackgroundMode string `json:"backgroundMode"`
+```
+In `defaults.go`: `ZoomLevel: 100`, `Opacity: 100`, `ReadingWidth: 1000`, `ReaderRadius: 20`, `BackgroundMode: "gradient"`.
+
+In `Load()`: zero-value guards (same pattern as `VertexRegion`).
+**Acceptance:**
+- Fields serialize/deserialize in config.json
+- Defaults match frontend defaults
+- Old configs load without error
+
+---
+
+### Task 7.1b: Add SaveUISettings Method (DR-5)
+
+**Feature:** F7
+**Depends on:** Task 7.1
+**File(s):** `app.go`
+**Change:** Per DR-5, add field-specific save method (NOT full `UpdateConfig` replacement):
+```go
+type UISettings struct {
+    ZoomLevel      int    `json:"zoomLevel"`
+    Opacity        int    `json:"opacity"`
+    ReadingWidth   int    `json:"readingWidth"`
+    ReaderRadius   int    `json:"readerRadius"`
+    BackgroundMode string `json:"backgroundMode"`
+}
+
+func (a *App) SaveUISettings(s UISettings) error {
+    a.cfgMgr.Update(func(c *config.Config) {
+        c.ZoomLevel = s.ZoomLevel
+        c.Opacity = s.Opacity
+        c.ReadingWidth = s.ReadingWidth
+        c.ReaderRadius = s.ReaderRadius
+        c.BackgroundMode = s.BackgroundMode
+    })
+    return a.cfgMgr.Save()
 }
 ```
-
-**Acceptance criteria:**
-- `streamCancel` is `nil` when no stream is active
-- `streamMu` protects concurrent access to `streamCancel`
-- LLM client is initialized lazily on first `StartStream` call (not at startup)
-
----
-
-### 2.2 Bound methods
-
-| Method | Signature | Behavior |
-|--------|-----------|----------|
-| `StartStream` | `(prompt string) error` | Resolves API key, creates client if needed, starts goroutine that streams and emits events. Returns error if no API key or stream already active |
-| `CancelStream` | `() error` | Calls `streamCancel()`, sets it to nil. Returns error if no active stream |
-| `SetAPIKey` | `(key string) error` | Delegates to `keystore.SetAPIKey`. Invalidates cached client |
-| `HasAPIKey` | `() bool` | Delegates to `keystore.HasAPIKey` |
-| `GetAvailableModels` | `() []string` | Returns `["claude-haiku-4-5", "claude-sonnet-5", "claude-opus-5"]` |
-
-**Acceptance criteria:**
-- `StartStream` returns error if a stream is already active (single-stream constraint)
-- `StartStream` emits `llm:chunk`, `llm:done`, `llm:error` events via `wailsRuntime.EventsEmit`
-- `CancelStream` is safe to call when no stream is active (returns descriptive error, no panic)
-- `SetAPIKey` invalidates any cached `llmClient` so the next stream uses the new key
-- `HasAPIKey` never exposes the key value — only boolean status
+**Acceptance:**
+- Only UI fields modified
+- Other config fields preserved
+- Wails auto-generates binding
+- Concurrent AI settings saves not clobbered
 
 ---
 
-## Task 3: Stream store and Tab extension (frontend)
+### Task 8.1: Modify CLI to Accept File Paths
 
-**Traces to:** FR-1, FR-2, FR-3, FR-4, FR-8
+**Feature:** F8
+**File(s):** `main.go`
+**Change:** Lines 64-72: if `!info.IsDir()`:
+1. Check markdown extension (`.md` or `.markdown`)
+2. Set `rootPath` to `filepath.Dir(absPath)`
+3. Store `initialFile = filepath.Base(absPath)`
+4. Re-resolve `absPath` to directory for downstream validation
+5. Non-markdown files: print error, exit
 
-**Files to create:**
-- `frontend/src/lib/stores/stream.ts`
+Declare `initialFile := ""` before the arg loop.
+**Acceptance:**
+- `ais README.md` opens with parent dir as root
+- `ais /abs/path/file.md` works
+- `ais somedir/` unchanged
+- Non-markdown files rejected
+- Non-existent paths error
 
-**Files to modify:**
-- `frontend/src/lib/stores/tabs.ts` — extend Tab interface
+---
 
-### 3.1 Extended Tab interface
+### Task 8.2: Add Initial File to App Struct (DR-7)
 
+**Feature:** F8
+**Depends on:** Task 8.1
+**File(s):** `app.go`, `main.go`
+**Change:** Per DR-7, use binding (not events) to avoid race:
+1. Add `initialFile string` to App struct
+2. Update `NewApp(rootPath, initialFile string)`
+3. Add bound method: `func (a *App) GetInitialFile() string { return a.initialFile }`
+4. Update `main.go`: `app := NewApp(absPath, initialFile)`
+**Acceptance:**
+- `NewApp` accepts two parameters
+- `GetInitialFile()` returns filename or empty string
+- Wails auto-generates binding
+- No race condition
+
+---
+
+### Task 4.1: Add Watcher Path Alignment Test
+
+**Feature:** F4
+**File(s):** `internal/watcher/watcher_test.go`
+**Change:** Test that:
+1. Creates temp dir with nested markdown files
+2. Starts Watcher, writes to file
+3. Asserts callback path matches `scanner.ScanDirectory` output
+4. Tests with EvalSymlinks applied (after P.2)
+**Acceptance:**
+- Watcher paths match scanner paths
+- Root-level and nested files covered
+- `go test ./internal/watcher/...` passes
+
+---
+
+## Phase 3: Frontend Foundation (depends on Phase 2)
+
+### Task 1.2: Intercept All Link Clicks in MarkdownViewer
+
+**Feature:** F1
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** In `handleContentClick`, after code-copy-btn check (line 125), before heading check (line 132):
 ```typescript
-export interface Tab {
-    id: string;
-    name: string;
-    path: string;
-    content: string;
-    scrollPos: number;
-    type: 'file' | 'stream';           // NEW — default 'file'
-    streamActive?: boolean;             // NEW — true while streaming
+const link = target.closest('a') as HTMLAnchorElement | null;
+if (link) {
+    e.preventDefault();
+    const href = link.getAttribute('href');
+    if (!href) return;
+    if (href.startsWith('http://') || href.startsWith('https://')) {
+        handleExternalLink(href);
+    } else if (href.startsWith('#')) {
+        handleAnchorLink(href);
+    } else if (/\.(?:md|markdown)(?:#|$)/i.test(href)) {
+        handleLocalLink(href);
+    }
+    return;
 }
 ```
-
-**Acceptance criteria:**
-- All existing tabs default to `type: 'file'`
-- Stream tabs use `type: 'stream'` with a generated ID (not a file path)
-- `openTab` continues to work for file tabs unchanged
-- New `openStreamTab(prompt: string): string` function returns the tab ID
+Define stub handler functions.
+**Acceptance:**
+- All `<a>` clicks intercepted
+- WebView never navigates away
+- Child elements inside `<a>` detected via `closest()`
+- Non-link clicks (headings, copy) unaffected
 
 ---
 
-### 3.2 Stream store (stream.ts)
+### Task 1.3: Implement External Link Handler
 
-The stream store uses a state enum to match the 6-state machine defined in `spec/ux.md`:
+**Feature:** F1
+**Depends on:** Task 1.1, Task 1.2
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Implement `handleExternalLink(href)`: import `OpenExternalURL` from Wails binding, call it, catch errors to console.
+**Acceptance:**
+- External links open in default browser
+- Errors logged, not shown to user
 
+---
+
+### Task 1.4: Implement Local Markdown Link Handler
+
+**Feature:** F1
+**Depends on:** Task 1.2
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Implement `handleLocalLink(href)`:
+1. Strip anchor fragment (split on `#`)
+2. Get current dir from `$activeTab.path`
+3. Join and normalize (resolve `../`)
+4. Call `openTab(resolvedPath, filename)`
+**Acceptance:**
+- `[link](other.md)` opens tab
+- `../README.md` from `docs/arch.md` resolves to `README.md`
+- Already-open files focused
+
+---
+
+### Task 1.5: Implement Anchor Link Handler + Heading IDs
+
+**Feature:** F1
+**Depends on:** Task 1.2
+**File(s):** `frontend/src/lib/markdown/renderer.ts`, `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:**
+1. `renderer.ts`: add markdown-it core ruler `heading_ids` that sets `id` from heading text (slugify: lowercase, spaces to hyphens, strip special chars)
+2. `MarkdownViewer.svelte`: implement `handleAnchorLink(href)` using `viewerEl.querySelector` + `scrollIntoView({ behavior: 'smooth' })`
+**Acceptance:**
+- Headings have `id` attributes
+- `#section` links smooth-scroll
+- Missing anchors do nothing
+- `html: false` invariant preserved
+
+---
+
+### Task 1.6: Add Visual Indicator for External Links
+
+**Feature:** F1
+**File(s):** `frontend/src/lib/markdown/renderer.ts`, `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:**
+1. `renderer.ts`: add `link_open` rule adding `data-external="true"` for http/https links
+2. MarkdownViewer CSS: `a[data-external]::after { content: '\2197'; font-size: 0.7em; opacity: 0.35; color: var(--text-tertiary); }`
+**Acceptance:**
+- Subtle arrow on external links
+- Uses --text-tertiary token
+- No indicator on local/anchor links
+
+---
+
+### Task 2.2: Add Image URL Rewriting to Renderer
+
+**Feature:** F2
+**Depends on:** Task 2.6
+**File(s):** `frontend/src/lib/markdown/renderer.ts`, `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:**
+1. `renderer.ts`: change to `renderMarkdown(source, basePath?)`. Add `image` rule: http/https/data: pass through; relative resolved against basePath, rewritten to `/local/`; absolute rewritten to `/local/`.
+2. MarkdownViewer: derive basePath from `$activeTab.path`, pass to renderMarkdown. Stream tabs pass undefined.
+**Acceptance:**
+- Local images render via `/local/`
+- External/data URIs unchanged
+- Relative paths resolved correctly
+- Stream tabs work without basePath
+
+---
+
+### Task 2.3: Add Image Error Fallback Placeholder
+
+**Feature:** F2
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Add `$effect()` after render. Attach `onerror` to `<img>` elements. Replace broken images with styled placeholder div (broken-image SVG + alt text). CSS uses `--hover-bg`, `--border`, `--text-tertiary`.
+**Acceptance:**
+- Broken images show styled placeholder
+- Alt text displayed if available
+- Re-attached on re-render
+- Successfully loaded images unaffected
+
+---
+
+### Task 2.4: Add Image Design Tokens and Styling
+
+**Feature:** F2
+**File(s):** `frontend/src/style.css`, `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:**
+1. `style.css`: add image tokens from `spec/feature-ux.md` (both `:root` and `.light`)
+2. MarkdownViewer: update `.doc-inner :global(img)` from `border-radius: 6px` to 12px, add border, shadow, hover state, `cursor: zoom-in`
+3. Add `.md-image-error` and `.md-image-placeholder` classes
+**Acceptance:**
+- 12px radius, border, shadow
+- Hover brightens border
+- Both themes work
+- No hardcoded colors
+
+---
+
+### Task 2.7: Create Image Lightbox Component
+
+**Feature:** F2
+**File(s):** New file `frontend/src/lib/components/ImageLightbox.svelte`
+**Change:** Svelte 5 component. Props: `src`, `alt`, `open`, `onclose`. Per `spec/feature-ux.md`: overlay z-index 300, image max 90vw/85vh, 16px radius, 120ms animation, close on overlay/image/Escape/scroll. ARIA dialog.
+**Acceptance:**
+- Centered image on overlay
+- All four close triggers
+- Escape priority: lightbox > command palette > stream > nav
+- Reduced motion: instant
+- Keyboard accessible
+
+---
+
+### Task 2.8: Wire Lightbox into MarkdownViewer
+
+**Feature:** F2
+**Depends on:** Task 2.7
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Add lightbox state. In `handleContentClick`, detect `<img>` clicks (before link handler). Exclude error placeholders. Import and render `<ImageLightbox>`. Add Escape priority.
+**Acceptance:**
+- Image clicks open lightbox
+- Broken images do not trigger
+- Escape closes lightbox
+
+---
+
+### Task 3.3: Define Highlight Color CSS Custom Properties
+
+**Feature:** F3
+**File(s):** `frontend/src/style.css`
+**Change:** Add from `spec/feature-ux.md`: 6 colors x 3 variants (background, border, dot) for both themes. Add `<mark>` base styling with `data-highlight` attribute.
+**Acceptance:**
+- 6 colors for both themes
+- Subtle opacity (0.14-0.28)
+- WCAG AA readable
+
+---
+
+### Task 3.4: Create Text Selection Capture Utility
+
+**Feature:** F3
+**File(s):** New file `frontend/src/lib/highlights/selection.ts`
+**Change:** Export `captureSelection(viewerEl): SelectionAnchor | null`. Uses `window.getSelection()`. Returns `{ anchorText, prefixContext(30), suffixContext(30) }`. Returns null if: no selection, outside viewer, whitespace-only, inside `<pre>`/`<code>`.
+**Acceptance:**
+- Cross-element selections handled
+- Code blocks return null
+- Pure function
+
+---
+
+### Task 3.5: Create Highlight DOM Renderer
+
+**Feature:** F3
+**Depends on:** Task 3.3
+**File(s):** New file `frontend/src/lib/highlights/renderer.ts`
+**Change:** Export `applyHighlights(viewerEl, highlights[])` and `clearHighlightMarks(viewerEl)`. Removes existing marks, collects text nodes, finds anchors by context, wraps in `<mark>`. Skips code blocks. Idempotent.
+**Acceptance:**
+- Correct color on marks
+- Orphaned skipped
+- Idempotent
+- Existing handlers work
+
+---
+
+### Task 3.7: Create Highlight Svelte Store
+
+**Feature:** F3
+**Depends on:** Task 3.2
+**File(s):** New file `frontend/src/lib/stores/highlights.ts`
+**Change:** Cache-backed store with `loadHighlightsForFile`, `addHighlight`, `removeHighlight`, `getHighlightsForFile`. Backend calls on cache miss. Invalidate on mutations.
+**Acceptance:**
+- Cache avoids redundant Go calls
+- Add/remove update backend and cache
+
+---
+
+### Task 7.2: Load UI Settings from Go Config on Startup
+
+**Feature:** F7
+**Depends on:** Task 7.1
+**File(s):** `frontend/src/lib/stores/settings.ts`
+**Change:** Extend `loadSettings()`: after loading theme, call `GetConfig()` and apply UI fields (opacity, readingWidth, readerRadius, backgroundMode, zoomLevel) to ui.ts stores.
+**Acceptance:**
+- UI settings restored on startup
+- Old configs use defaults
+- Theme loading unaffected
+
+---
+
+### Task 7.3: Save UI Settings on Change (Debounced, DR-5)
+
+**Feature:** F7
+**Depends on:** Task 7.1b
+**File(s):** `frontend/src/lib/stores/ui.ts`
+**Change:** Add debounced `persistUISettings()` that calls `SaveUISettings` binding (NOT `UpdateConfig`). 500ms debounce. Call from: `changeOpacity`, `setOpacity`, `setReaderRadius`, `setBackgroundMode`, `zoomIn`, `zoomOut`, `resetZoom`. Subscribe to `readingWidth` changes for slider persistence.
+**Acceptance:**
+- All UI changes persist
+- 500ms debounce
+- Uses `SaveUISettings` (field-specific, per DR-5)
+- AI settings not clobbered
+- Survives restart
+
+---
+
+### Task 8.3: Handle Initial File Open in Frontend (DR-7)
+
+**Feature:** F8
+**Depends on:** Task 8.2
+**File(s):** `frontend/src/App.svelte`
+**Change:** Per DR-7, use binding call (no events). In onMount after `loadFileTree()`:
 ```typescript
-type StreamState = 'idle' | 'prompting' | 'streaming' | 'complete' | 'cancelled' | 'error';
-
-streamContent: writable<string>('')              // Accumulated markdown text
-streamState: writable<StreamState>('idle')       // Current state in the lifecycle
-streamError: writable<StreamError | null>(null)  // Error details if state === 'error'
+const { GetInitialFile } = await import('../wailsjs/go/main/App');
+const initialFile = await GetInitialFile();
+if (initialFile) {
+    openTab(initialFile, initialFile.split('/').pop() ?? initialFile);
+}
 ```
-
-**Acceptance criteria:**
-- `startStream(prompt: string)` — transitions to `'streaming'`, calls `StartStream`, opens stream tab, registers event listeners
-- `cancelStream()` — transitions to `'cancelled'`, calls `CancelStream`
-- Event listeners: `llm:chunk` appends text to `streamContent`, `llm:done` transitions to `'complete'`, `llm:error` transitions to `'error'` and sets `streamError`
-- `streamContent` resets to `''` on each new stream
-- Cleanup: event listeners are removed on terminal states (`complete`, `cancelled`, `error`)
-- Derived convenience: `streamActive` derived as `streamState === 'streaming'`
-- The `'prompting'` state is set when the Command Palette enters prompt input mode (before submission)
+**Acceptance:**
+- `ais README.md` opens with file in tab
+- `ais somedir/` opens with no auto-tab
+- No race condition
 
 ---
 
-## Task 4: Incremental rendering with morphdom
+## Phase 4: Integration (depends on Phase 3)
 
-**Traces to:** FR-2, NFR-1
+### Task 3.6a: Wire Highlight Loading into MarkdownViewer
 
-**Files to modify:**
-- `frontend/src/lib/components/MarkdownViewer.svelte`
-
-**New dependency:** `morphdom` (npm)
-
-### 4.1 morphdom integration
-
-**Acceptance criteria:**
-- When `tab.type === 'stream'` and `tab.streamActive === true`, the viewer uses morphdom to diff and patch the DOM instead of replacing innerHTML
-- morphdom receives the full rendered HTML on each chunk and applies minimal mutations
-- Re-render of 50KB content completes in < 5ms (NFR-1)
-- When `streamActive === false`, the viewer reverts to standard innerHTML assignment (no morphdom overhead for static content)
-
-### 4.2 Auto-scroll and "Resume following" pill
-
-Per Design.md, scroll behavior during streaming:
-
-**Acceptance criteria:**
-- If the user is at the bottom (within 50px of scroll end), new content auto-scrolls into view
-- If the user scrolls up manually, the scroll position locks — new content arrives below without disturbing the viewport
-- When scroll is locked (user scrolled up), a "Resume following" glass pill appears at the bottom of the viewer
-- Clicking the pill or scrolling back to the bottom re-enables auto-follow
-- The pill has ARIA label "Resume following new content" and is keyboard-accessible
-- The pill uses the glass aesthetic: translucent background, rounded, subtle border
-
-### 4.3 Streaming caret
-
-Per Design.md, a blinking caret marks the insertion point during streaming:
-
-**Acceptance criteria:**
-- A caret element (2px wide, 1.2em tall) appears at the end of the last rendered content
-- The caret blinks with a step-end animation at 1s interval
-- On stream completion or cancellation, the caret fades out over 200ms
-- The caret is managed by morphdom — it must not interfere with DOM diffing (excluded from diff via `onBeforeElUpdated` skip)
-- CSS uses `--stream-caret` custom property for color
-
-### 4.4 Code block streaming accent
-
-Per Design.md, open code blocks during streaming show a visual accent:
-
-**Acceptance criteria:**
-- While a fenced code block is open (opening fence received, closing fence not yet received), the code block has a 2px left border using `--stream-glow` at 0.3 opacity
-- When the closing fence arrives and the block is complete, the accent fades out over 120ms
-- Detection of open/incomplete code blocks requires tracking fence state in the accumulated markdown
-
-### 4.5 Streaming visual indicators
-
-**Acceptance criteria:**
-- Active stream: CSS class `streaming` on the viewer container adds a subtle border pulse (`1px accent glow`, 2s ease-in-out, opacity 0.15-0.55, per Design.md)
-- Completed: class removed, border returns to default (200ms fade-out on tab indicator)
-- Cancelled: "Stopped" status label rendered below content (per Design.md)
-- Error: brief flash class, then inline error text with 6px colored dot prefix (per Design.md, 80ms fade-in)
-- `aria-busy="true"` set during active stream
-- `aria-live="polite"` on the content container
-- All animations disabled under `prefers-reduced-motion: reduce`
+**Feature:** F3
+**Depends on:** Task 3.5, Task 3.7
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Import store + renderer. Add two effects: (1) load highlights on tab change for file tabs, (2) apply highlights after content render via `requestAnimationFrame`.
+**Acceptance:**
+- Highlights load on tab switch
+- Render after content updates
+- Stream tabs show none
+- Live reload re-applies
 
 ---
 
-## Task 5: Command Palette and ControlStrip integration
+### Task 3.6b: Wire Highlight Creation via Keyboard Shortcut
 
-**Traces to:** FR-1, FR-3, FR-8
-
-**Files to modify:**
-- `frontend/src/lib/components/CommandPalette.svelte`
-- `frontend/src/lib/components/ControlStrip.svelte`
-
-### 5.1 Command Palette — "Ask AI" command
-
-Per Design.md, the Command Palette gains a 4th category tab ("AI") with a dedicated prompt mode:
-
-**Acceptance criteria:**
-- A 4th "AI" category tab appears in the Command Palette tab strip
-- Selecting "AI" transitions the palette to a prompt textarea mode (replaces the results list)
-- The prompt textarea supports multi-line input (`Shift+Enter` for newlines, `Enter` to submit)
-- An inline model selector pill shows the currently selected model (e.g., "claude-sonnet-5"), clickable to cycle models
-- Submitting the prompt calls `startStream(prompt)` from the stream store and closes the palette
-- If no API key is configured, show a message directing to Settings
-- Command is keyboard accessible
-
-### 5.2 ControlStrip — Stop button
-
-Per Design.md, the stop button is a 34px round button with a filled square icon:
-
-**Acceptance criteria:**
-- When `streamActive === true`, the ControlStrip shows a 34px round stop button (after the zoom group)
-- The button displays a filled square icon (stop symbol)
-- The button calls `cancelStream()`
-- Hover state uses danger-dim color treatment
-- The button disappears when streaming ends (complete, error, or cancel)
-- Button has `aria-label="Stop streaming"`
-- Keyboard accessible (Tab navigable)
-- `Escape` key cancels the active stream, following the priority chain: Command Palette > active stream > navigation panel (per Design.md)
+**Feature:** F3
+**Depends on:** Task 3.4, Task 3.6a
+**File(s):** `frontend/src/App.svelte`, `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Ctrl+Shift+H in App.svelte dispatches `highlight:toggle` event. MarkdownViewer listens: capture selection, toggle (remove if exists, add yellow if not), persist, re-apply.
+**Acceptance:**
+- Ctrl+Shift+H creates/removes highlights
+- No selection or code block: no-op
+- Persists across restarts
 
 ---
 
-## Task 6: Settings panel — API key and model selector
+### Task 3.6c: Create Quick Action Bar Component
 
-**Traces to:** FR-6, FR-7
-
-**Files to modify:**
-- `frontend/src/lib/components/SettingsPanel.svelte`
-
-### 6.1 API key configuration
-
-**Acceptance criteria:**
-- New section in SettingsPanel: "AI Configuration"
-- API key input: masked by default (`type="password"`), toggle to reveal
-- Save button calls `SetAPIKey(key)` via Wails binding
-- Status indicator shows "Configured" (green) or "Not configured" (neutral) via `HasAPIKey()`
-- Clear button to remove the API key
-- Help text: "Your API key is stored securely in your OS keychain. It is never saved to the config file."
-
-### 6.2 Model selector
-
-Per Design.md, the model selector uses a segmented control (Haiku | Sonnet | Opus):
-
-**Acceptance criteria:**
-- Segmented control with three options: Haiku, Sonnet, Opus (per Design.md)
-- Selected model persists in config (new `selectedModel` field in Config)
-- Default model: `claude-sonnet-5` (resolved: quality-first default per Design.md)
-- Each segment shows the model tier name; full model ID used internally
-- 6px status dot next to the section header (success when key configured, warning when not, per Design.md)
+**Feature:** F3
+**File(s):** New file `frontend/src/lib/components/QuickActionBar.svelte`
+**Change:** Floating toolbar on text selection. Props: position, visible, inCodeBlock, isStreaming, onhighlight. 6 color dots per feature-ux.md. Single click: last-used color. Long press/second click: expand all. Glass surface. Disabled in code blocks and during streaming.
+**Acceptance:**
+- Appears above selection
+- Disappears on deselection
+- Disabled states work
+- ARIA labels
 
 ---
 
-## Task 7: Error handling and edge cases
+### Task 3.6d: Wire Quick Action Bar into MarkdownViewer
 
-**Traces to:** FR-5, NFR-4
-
-**Files to modify:**
-- `internal/llm/client.go`
-- `frontend/src/lib/stores/stream.ts`
-- `frontend/src/lib/components/MarkdownViewer.svelte`
-
-### 7.1 Backend error classification
-
-**Acceptance criteria:**
-- Network errors (DNS, timeout, connection refused) map to `StreamError{Code: "network"}`
-- Auth errors (401) map to `StreamError{Code: "auth"}`
-- Rate limit (429) maps to `StreamError{Code: "rate_limit"}` with retry-after if available
-- Cancellation maps to `StreamError{Code: "cancelled"}`
-- Other API errors map to `StreamError{Code: "api", Message: ...}`
-
-### 7.2 Frontend error display
-
-Per Design.md, errors use inline text with a 6px colored dot prefix. Cancellation shows a "Stopped" label.
-
-**Acceptance criteria:**
-- Error renders as inline text below content with a 6px colored dot prefix (per Design.md, 80ms fade-in)
-- Four error variants per Design.md: no API key (warning dot + "Open Settings" link), network failure, rate limit, API error
-- Auth errors suggest checking the API key in Settings with a clickable "Open Settings" link
-- Rate limit errors show retry-after time if available
-- Network errors suggest checking internet connectivity
-- Cancelled streams show a "Stopped" status label below content (not an error — distinct visual treatment per Design.md)
-- Error notice follows the glass aesthetic (translucent background, soft border)
-
-### 7.3 Edge cases
-
-**Acceptance criteria:**
-- Closing a stream tab while streaming calls `CancelStream()` automatically
-- Switching away from a stream tab does not stop the stream — content accumulates in background
-- Application shutdown during active stream cancels cleanly (no goroutine leak)
-- Empty response (zero chunks) shows a "No content received" notice
-- Very long responses (>100KB) continue to render without degradation
+**Feature:** F3
+**Depends on:** Task 3.6c, Task 3.6a
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** Listen `selectionchange`. Position via `Range.getBoundingClientRect()`. Detect code block context. On highlight: capture, add, re-apply.
+**Acceptance:**
+- Full workflow: select, click color, mark appears
+- No interference with existing handlers
 
 ---
 
-## Task 8: Tests
+### Task 3.6e: Add Right-Click Context Menu for Highlights
 
-**Traces to:** All requirements
+**Feature:** F3
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`
+**Change:** `oncontextmenu` handler. With selection: "Highlight" + 6 dots. On existing mark: "Remove highlight". Prevent default.
+**Acceptance:**
+- Context menu with color options
+- Remove option on highlighted text
+- Closes on outside click or Escape
 
-**Files to create:**
-- `internal/llm/client_test.go`
-- `internal/llm/keystore_test.go`
+---
 
-### 8.1 Client tests (client_test.go)
+### Task 3.10: Add Highlight Search to Command Palette
 
-**Acceptance criteria:**
-- SSE mock server using `httptest` that emits a sequence of `content_block_delta` events
-- Test: successful stream receives all chunks in order
-- Test: cancellation mid-stream stops chunk delivery
-- Test: server error (500) returns appropriate `StreamError`
-- Test: auth error (401) returns `StreamError{Code: "auth"}`
-- Test: rate limit (429) returns `StreamError{Code: "rate_limit"}`
-- Test: empty response (no content events) returns gracefully
-- Test: chunk batching — rapid events are batched at 50ms intervals
+**Feature:** F3
+**File(s):** `frontend/src/lib/components/CommandPalette.svelte`
+**Change:** When query contains "highlight", add current file's highlights as results. Each: color dot + first 60 chars. Action: scroll to highlight.
+**Acceptance:**
+- "highlight" query shows highlights
+- Click scrolls to highlight
 
-### 8.2 Keystore tests (keystore_test.go)
+---
 
-**Acceptance criteria:**
-- Test: env var takes priority over keychain and file
-- Test: keychain takes priority over file (may require mock or build tag for CI)
-- Test: file fallback works when keychain unavailable
-- Test: credentials file has `0600` permissions
-- Test: `HasAPIKey()` returns correct boolean for each storage state
-- Test: `DeleteAPIKey()` removes from all locations
+## Phase 5: Polish and Accessibility (depends on Phase 4)
+
+### Task 3.9: Add Highlight Accessibility
+
+**Feature:** F3
+**File(s):** `frontend/src/lib/highlights/renderer.ts`, `frontend/src/style.css`
+**Change:**
+1. Renderer: add `<span class="sr-only">{Color} highlight: </span>` inside marks
+2. CSS: `mark[data-highlight]:focus-visible` with `var(--border-focus)` outline
+3. Announcements via `#srAnnounce`
+**Acceptance:**
+- Screen readers announce color
+- Marks keyboard-navigable
+- Focus indicator visible
+
+---
+
+### Task 2.9: Add Image Accessibility
+
+**Feature:** F2
+**File(s):** `frontend/src/lib/components/MarkdownViewer.svelte`, `frontend/src/lib/components/ImageLightbox.svelte`
+**Change:** Post-render: `tabindex="0"` on images, Enter opens lightbox. Lightbox ARIA. Announcements. Error placeholder ARIA. Focus return.
+**Acceptance:**
+- Images focusable via Tab
+- Enter opens lightbox
+- Lightbox announced
+- Focus management correct
 
 ---
 
 ## Dependency Graph
 
 ```
-Task 1 (internal/llm)
-    |
-    v
-Task 2 (Wails bindings)
-    |
-    +---> Task 3 (stream store + Tab extension)
-    |         |
-    |         v
-    |     Task 4 (morphdom rendering)
-    |         |
-    |         v
-    |     Task 5 (CommandPalette + ControlStrip)
-    |
-    +---> Task 6 (Settings panel)
-    |
-    v
-Task 7 (Error handling) — depends on Tasks 1-6
-    |
-    v
-Task 8 (Tests) — depends on Tasks 1-7
+Phase 0 (parallel):
+    5.1, 5.2, 6.1
+
+Phase 1 (sequential prerequisites):
+    P.1 (rootPath mutex) -> P.2 (EvalSymlinks)
+
+Phase 2 (parallel, after Phase 1):
+    1.1, 1.7                     (F1 backend)
+    2.1 -> 2.5, 2.6             (F2 backend)
+    3.1 -> 3.8, 3.2             (F3 backend)
+    7.1 -> 7.1b                  (F7 backend)
+    8.1 -> 8.2                   (F8 backend)
+    4.1                          (F4 test)
+
+Phase 3 (parallel, after Phase 2):
+    1.2 -> 1.3, 1.4, 1.5        (1.3-1.5 parallel)
+    1.6                          (independent)
+    2.2 -> 2.3                   (depends on 2.6)
+    2.4                          (independent CSS)
+    2.7 -> 2.8                   (lightbox)
+    3.3, 3.4                     (parallel)
+    3.5                          (depends on 3.3)
+    3.7                          (depends on 3.2)
+    7.2 -> 7.3                   (depends on 7.1b)
+    8.3                          (depends on 8.2)
+
+Phase 4 (after Phase 3):
+    3.6a -> 3.6b                 (highlight wiring)
+    3.6c -> 3.6d                 (Quick Action bar)
+    3.6e                         (context menu)
+    3.10                         (Command Palette)
+
+Phase 5 (after Phase 4):
+    3.9, 2.9                     (accessibility, parallel)
 ```
 
-Tasks 3-5 and Task 6 can proceed in parallel once Task 2 is complete.
+## Code Invariants Checklist
 
----
+Every task must preserve these:
 
-## Effort Estimates
-
-| Task | Effort | Rationale |
-|------|--------|-----------|
-| Task 1: internal/llm | Medium | New package, SDK integration, SSE batching logic |
-| Task 2: Wails bindings | Small | Thin layer delegating to internal/llm |
-| Task 3: Stream store + Tab | Small | Store pattern is established; extending Tab is mechanical |
-| Task 4: morphdom rendering | Large | DOM diffing, caret management, auto-scroll + resume pill, code block accent, scroll preservation |
-| Task 5: CommandPalette + ControlStrip | Small | Adding commands and conditional button to existing components |
-| Task 6: Settings panel | Small | Form inputs with Wails binding calls |
-| Task 7: Error handling | Medium | Cross-cutting concern touching backend and frontend |
-| Task 8: Tests | Medium | SSE mock server, keystore mocking, table-driven tests |
-
----
-
-## Resolved Questions
-
-### OQ-1: Default model — RESOLVED: Sonnet
-
-**Decision:** `claude-sonnet-5` is the default model. The first-stream experience defines user trust in the feature. Sonnet delivers the quality that makes the user return. Users who want lower cost can switch to Haiku in the model selector. All specs updated to reflect this decision.
-
----
-
-### OQ-2: Session persistence — RESOLVED: Deferred to v2
-
-**Decision:** Stream tabs are in-memory only for v1. Content is lost on application close. Users can copy content before closing. Session persistence is a v2 addition once the core streaming experience is stable. ux.md updated by Steve to reflect the v1/v2 split.
+- **Path traversal:** All file paths validated against rootPath prefix
+- **XSS prevention:** markdown-it `html: false` never changed; renderer uses rule system
+- **File size limit:** 10MB max for all file reads/serves
+- **Concurrent config:** Config access through Manager.Get()/Update() only
+- **rootPath safety:** Access via `getRootPath()` with mutex (after P.1)
+- **API key isolation:** Keys never in config.json, never logged, never in error messages
+- **Skip directories:** .git, node_modules, vendor, .svn, __pycache__, .venv skipped; .ais skipped by hidden-dir rule
+- **CSS tokens only:** No hardcoded colors; use `var(--token)`
+- **Svelte 5 runes:** `$state()`, `$derived()`, `$effect()`, `$props()` only
+- **ARIA:** All interactive elements have appropriate attributes

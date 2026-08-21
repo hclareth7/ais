@@ -201,6 +201,35 @@ func (c *Client) Stream(ctx context.Context, req StreamRequest, emit func(Stream
 	return nil
 }
 
+// Translate performs a non-streaming translation of the given text to the
+// target language. Uses Haiku for minimal latency regardless of the client's
+// configured model. Returns the translated text or a classified error.
+func (c *Client) Translate(ctx context.Context, text string, targetLang string) (string, error) {
+	params := anthropic.MessageNewParams{
+		Model:     ModelHaiku,
+		MaxTokens: 1024,
+		System: []anthropic.TextBlockParam{
+			{Text: fmt.Sprintf("Translate the following text to %s. Return only the translation, nothing else.", targetLang)},
+		},
+		Messages: []anthropic.MessageParam{
+			anthropic.NewUserMessage(anthropic.NewTextBlock(text)),
+		},
+	}
+
+	msg, err := c.apiClient.Messages.New(ctx, params)
+	if err != nil {
+		return "", classifyError(err)
+	}
+
+	for _, block := range msg.Content {
+		if block.Type == "text" {
+			return block.Text, nil
+		}
+	}
+
+	return "", &StreamError{Code: ErrCodeAPI, Message: "no text in response"}
+}
+
 // classifyError maps SDK and transport errors to typed StreamError values.
 // The error codes match the contract defined in spec/API.md:
 //   - "network":    DNS failure, timeout, connection refused

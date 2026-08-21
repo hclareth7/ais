@@ -31,6 +31,11 @@
   let vertexRegion = $state('us-east5');
   let vertexRegions: string[] = $state([]);
 
+  // Translation state
+  let translationLangs: string[] = $state(['es', 'en']);
+  let translationDefaultIdx = $state(0);
+  let newLangInput = $state('');
+
   const providers: { key: string; label: string }[] = [
     { key: 'anthropic', label: 'Anthropic' },
     { key: 'vertex', label: 'Vertex AI' },
@@ -67,6 +72,8 @@
       if (cfg.provider) provider = cfg.provider;
       if (cfg.vertexProject) vertexProject = cfg.vertexProject;
       if (cfg.vertexRegion) vertexRegion = cfg.vertexRegion;
+      if (cfg.translationLanguages?.length) translationLangs = cfg.translationLanguages;
+      if (cfg.translationDefaultIndex != null) translationDefaultIdx = cfg.translationDefaultIndex;
       vertexRegions = await App.GetVertexRegions();
     } catch { /* use defaults */ }
   }
@@ -130,6 +137,53 @@
     } catch (err) {
       console.error('Failed to save Vertex config:', err);
     }
+  }
+
+  async function saveTranslationConfig() {
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      const cfg = await App.GetConfig();
+      cfg.translationLanguages = translationLangs;
+      cfg.translationDefaultIndex = translationDefaultIdx;
+      await App.UpdateConfig(cfg);
+    } catch (err) {
+      console.error('Failed to save translation config:', err);
+    }
+  }
+
+  function addLanguage() {
+    const lang = newLangInput.trim().toLowerCase();
+    if (!lang || translationLangs.includes(lang)) return;
+    translationLangs = [...translationLangs, lang];
+    newLangInput = '';
+    saveTranslationConfig();
+  }
+
+  function removeLanguage(idx: number) {
+    if (translationLangs.length <= 1) return;
+    translationLangs = translationLangs.filter((_, i) => i !== idx);
+    if (translationDefaultIdx >= translationLangs.length) {
+      translationDefaultIdx = 0;
+    } else if (translationDefaultIdx > idx) {
+      translationDefaultIdx--;
+    }
+    saveTranslationConfig();
+  }
+
+  function moveLanguage(idx: number, dir: -1 | 1) {
+    const newIdx = idx + dir;
+    if (newIdx < 0 || newIdx >= translationLangs.length) return;
+    const copy = [...translationLangs];
+    [copy[idx], copy[newIdx]] = [copy[newIdx], copy[idx]];
+    translationLangs = copy;
+    if (translationDefaultIdx === idx) translationDefaultIdx = newIdx;
+    else if (translationDefaultIdx === newIdx) translationDefaultIdx = idx;
+    saveTranslationConfig();
+  }
+
+  function setDefaultLanguage(idx: number) {
+    translationDefaultIdx = idx;
+    saveTranslationConfig();
   }
 
   function handleWidthInput(e: Event) {
@@ -366,6 +420,87 @@
       {:else}
         Your API key is stored securely in your OS keychain. It is never saved to the config file.
       {/if}
+    </div>
+
+    <div class="settings-divider" aria-hidden="true"></div>
+
+    <div class="sp-title">
+      <svg viewBox="0 0 20 20"><path d="M3 5h14M3 10h10M3 15h6"/></svg>
+      Translation
+    </div>
+
+    <div class="tl-langs" role="list" aria-label="Translation languages">
+      {#each translationLangs as lang, i (lang)}
+        <div class="tl-lang" class:tl-default={i === translationDefaultIdx} role="listitem">
+          <button
+            class="tl-star"
+            class:active={i === translationDefaultIdx}
+            onclick={() => setDefaultLanguage(i)}
+            title={i === translationDefaultIdx ? 'Default language' : 'Set as default'}
+            aria-label={i === translationDefaultIdx ? `${lang} is default` : `Set ${lang} as default`}
+          >
+            <svg viewBox="0 0 12 12">
+              {#if i === translationDefaultIdx}
+                <circle cx="6" cy="6" r="4" fill="var(--accent-solid)" stroke="none"/>
+              {:else}
+                <circle cx="6" cy="6" r="3.5" fill="none"/>
+              {/if}
+            </svg>
+          </button>
+          <span class="tl-code">{lang.toUpperCase()}</span>
+          <div class="tl-actions">
+            <button
+              class="tl-move"
+              onclick={() => moveLanguage(i, -1)}
+              disabled={i === 0}
+              title="Move up"
+              aria-label={`Move ${lang} up`}
+            >
+              <svg viewBox="0 0 10 10"><path d="M2 6l3-3 3 3"/></svg>
+            </button>
+            <button
+              class="tl-move"
+              onclick={() => moveLanguage(i, 1)}
+              disabled={i === translationLangs.length - 1}
+              title="Move down"
+              aria-label={`Move ${lang} down`}
+            >
+              <svg viewBox="0 0 10 10"><path d="M2 4l3 3 3-3"/></svg>
+            </button>
+            <button
+              class="tl-remove"
+              onclick={() => removeLanguage(i)}
+              disabled={translationLangs.length <= 1}
+              title="Remove"
+              aria-label={`Remove ${lang}`}
+            >
+              <svg viewBox="0 0 10 10"><line x1="2" y1="2" x2="8" y2="8"/><line x1="8" y1="2" x2="2" y2="8"/></svg>
+            </button>
+          </div>
+        </div>
+      {/each}
+    </div>
+
+    <div class="tl-add">
+      <input
+        class="tl-add-input"
+        type="text"
+        bind:value={newLangInput}
+        placeholder="Add language (e.g. fr)"
+        maxlength="10"
+        onkeydown={(e: KeyboardEvent) => { if (e.key === 'Enter') addLanguage(); }}
+        aria-label="New language code"
+      />
+      <button
+        class="tl-add-btn"
+        onclick={addLanguage}
+        disabled={!newLangInput.trim() || translationLangs.includes(newLangInput.trim().toLowerCase())}
+        aria-label="Add language"
+      >+</button>
+    </div>
+
+    <div class="ai-help-text">
+      Select text and press <code>T</code> to translate. Press <code>T</code> again to cycle languages. <code>Ctrl+Space</code> to switch default.
     </div>
   </div>
 {/if}
@@ -823,5 +958,177 @@
     color: var(--text-ghost);
     padding: 8px 0 0;
     line-height: 1.4;
+  }
+
+  /* Translation language list */
+  .tl-langs {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin-bottom: 8px;
+  }
+
+  .tl-lang {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 5px 8px;
+    border-radius: 8px;
+    transition: background 0.12s;
+  }
+
+  .tl-lang:hover {
+    background: var(--hover-bg);
+  }
+
+  .tl-lang.tl-default {
+    background: var(--accent-dim);
+  }
+
+  .tl-star {
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    padding: 0;
+    flex-shrink: 0;
+  }
+
+  .tl-star svg {
+    width: 12px;
+    height: 12px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.2;
+    fill: none;
+  }
+
+  .tl-star.active svg {
+    stroke: var(--accent-solid);
+  }
+
+  .tl-code {
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    font-weight: 600;
+    color: var(--text-primary);
+    flex: 1;
+  }
+
+  .tl-actions {
+    display: flex;
+    gap: 2px;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .tl-lang:hover .tl-actions {
+    opacity: 1;
+  }
+
+  .tl-move, .tl-remove {
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: none;
+    background: none;
+    cursor: pointer;
+    border-radius: 4px;
+    padding: 0;
+    transition: background 0.12s;
+  }
+
+  .tl-move:hover:not(:disabled) {
+    background: var(--hover-bg);
+  }
+
+  .tl-remove:hover:not(:disabled) {
+    background: rgba(239, 68, 68, 0.12);
+  }
+
+  .tl-move:disabled, .tl-remove:disabled {
+    opacity: 0.25;
+    cursor: default;
+  }
+
+  .tl-move svg {
+    width: 10px;
+    height: 10px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+  }
+
+  .tl-remove svg {
+    width: 8px;
+    height: 8px;
+    stroke: var(--text-tertiary);
+    stroke-width: 1.5;
+    stroke-linecap: round;
+    fill: none;
+  }
+
+  .tl-remove:hover:not(:disabled) svg {
+    stroke: var(--danger);
+  }
+
+  .tl-add {
+    display: flex;
+    gap: 4px;
+  }
+
+  .tl-add-input {
+    flex: 1;
+    padding: 5px 10px;
+    font-size: 12px;
+    font-family: 'JetBrains Mono', monospace;
+    color: var(--text-primary);
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.12s;
+  }
+
+  .tl-add-input:focus {
+    border-color: var(--border-focus);
+  }
+
+  .tl-add-input::placeholder {
+    color: var(--text-ghost);
+    font-family: inherit;
+  }
+
+  .tl-add-btn {
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 16px;
+    font-family: inherit;
+    color: var(--text-secondary);
+    background: var(--hover-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+  }
+
+  .tl-add-btn:hover:not(:disabled) {
+    background: var(--accent-dim);
+    color: var(--text-primary);
+  }
+
+  .tl-add-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
 </style>
