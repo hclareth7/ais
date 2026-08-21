@@ -1,9 +1,10 @@
 <script lang="ts">
-  import { commandPaletteOpen } from '../stores/ui';
+  import { commandPaletteOpen, commandPaletteCategory } from '../stores/ui';
   import { fileTree, type FileNode } from '../stores/files';
   import { openTab, activeTab, openStreamTab } from '../stores/tabs';
   import { setTheme } from '../stores/settings';
   import { setPrompting, startStreamSession, clearStream } from '../stores/stream';
+  import { searchScrollTarget } from '../stores/search';
   import { get } from 'svelte/store';
 
   let query = $state('');
@@ -15,6 +16,11 @@
   let selectedModel = $state('claude-sonnet-5');
   let hasApiKey = $state(false);
   let currentProvider = $state('anthropic');
+
+  // Search state
+  let searchResults = $state<Array<{filePath: string, lineNumber: number, matchOffset: number, context: string}>>([]);
+  let searchLoading = $state(false);
+  let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
 
   const modelOptions = [
     { id: 'claude-haiku-4-5', label: 'Haiku' },
@@ -88,10 +94,14 @@
   $effect(() => {
     const isOpen = $commandPaletteOpen;
     if (isOpen && !wasOpen) {
+      const initialCat = get(commandPaletteCategory);
       query = '';
       selectedIdx = 0;
-      activeCategory = 'all';
+      activeCategory = initialCat ?? 'all';
+      commandPaletteCategory.set(null);
       aiPrompt = '';
+      searchResults = [];
+      searchLoading = false;
       requestAnimationFrame(() => inputEl?.focus());
       import('../../../wailsjs/go/main/App')
         .then(async (app) => {
@@ -112,12 +122,49 @@
     }
   });
 
+  // Debounced search when in search mode
+  $effect(() => {
+    if (activeCategory !== 'search') return;
+    const q = query;
+
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+    }
+
+    if (!q.trim()) {
+      searchResults = [];
+      searchLoading = false;
+      return;
+    }
+
+    searchLoading = true;
+    searchDebounceTimer = setTimeout(async () => {
+      try {
+        const App = await import('../../../wailsjs/go/main/App');
+        const results = await App.SearchFiles(q);
+        // Only update if still on the search tab and query hasn't changed
+        if (activeCategory === 'search') {
+          searchResults = results ?? [];
+        }
+      } catch (err) {
+        console.error('Search failed:', err);
+        searchResults = [];
+      } finally {
+        searchLoading = false;
+      }
+    }, 300);
+  });
+
   $effect(() => {
     void results;
     selectedIdx = 0;
   });
 
   function close() {
+    if (searchDebounceTimer) {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = null;
+    }
     commandPaletteOpen.set(false);
     if (activeCategory !== 'ai') {
       clearStream();
@@ -165,6 +212,29 @@
       return;
     }
 
+    if (activeCategory === 'search') {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        selectedIdx = Math.min(selectedIdx + 1, searchResults.length - 1);
+        return;
+      }
+      if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        selectedIdx = Math.max(selectedIdx - 1, 0);
+        return;
+      }
+      if (e.key === 'Enter' && searchResults[selectedIdx]) {
+        e.preventDefault();
+        const sr = searchResults[selectedIdx];
+        const filename = sr.filePath.split('/').pop() ?? sr.filePath;
+        searchScrollTarget.set({ query: query, filePath: sr.filePath, lineNumber: sr.lineNumber });
+        openTab(sr.filePath, filename);
+        close();
+        return;
+      }
+      return;
+    }
+
     if (e.key === 'ArrowDown') {
       e.preventDefault();
       selectedIdx = Math.min(selectedIdx + 1, results.length - 1);
@@ -188,9 +258,34 @@
     if (e.target === e.currentTarget) close();
   }
 
+  function highlightContext(context: string, q: string): string {
+    if (!q) return escapeHtmlStr(context);
+    const escaped = escapeHtmlStr(context);
+    const lowerEscaped = escaped.toLowerCase();
+    const lowerQ = q.toLowerCase();
+    const parts: string[] = [];
+    let cursor = 0;
+    while (cursor < escaped.length) {
+      const idx = lowerEscaped.indexOf(lowerQ, cursor);
+      if (idx < 0) {
+        parts.push(escaped.slice(cursor));
+        break;
+      }
+      parts.push(escaped.slice(cursor, idx));
+      parts.push('<strong>' + escaped.slice(idx, idx + lowerQ.length) + '</strong>');
+      cursor = idx + lowerQ.length;
+    }
+    return parts.join('');
+  }
+
+  function escapeHtmlStr(s: string): string {
+    return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
   const categories = [
     { key: 'all', label: 'All' },
     { key: 'docs', label: 'Docs' },
+    { key: 'search', label: 'Search' },
     { key: 'commands', label: 'Commands' },
     { key: 'ai', label: 'AI' },
   ];
@@ -223,7 +318,7 @@
           <input
             bind:this={inputEl}
             bind:value={query}
-            placeholder="Search docs, commands..."
+            placeholder={activeCategory === 'search' ? 'Search in files...' : 'Search docs, commands...'}
             autocomplete="off"
             spellcheck="false"
           />
@@ -259,6 +354,41 @@
             </button>
           </div>
         </div>
+      {:else if activeCategory === 'search'}
+        <div class="pal-results" role="listbox">
+          {#if searchLoading}
+            <div class="pr-empty">Searching...</div>
+          {:else}
+            {#each searchResults as sr, i (sr.filePath + ':' + sr.lineNumber + ':' + sr.matchOffset)}
+              {@const filename = sr.filePath.split('/').pop() ?? sr.filePath}
+              <button
+                class="pr"
+                class:sel={i === selectedIdx}
+                role="option"
+                aria-selected={i === selectedIdx}
+                onclick={() => {
+                  searchScrollTarget.set({ query: query, filePath: sr.filePath, lineNumber: sr.lineNumber });
+                  openTab(sr.filePath, filename);
+                  close();
+                }}
+                onmouseenter={() => selectedIdx = i}
+              >
+                <svg viewBox="0 0 24 24">
+                  <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/>
+                </svg>
+                <div class="pr-info">
+                  <div class="pr-t">{filename}<span class="pr-line">:{sr.lineNumber}</span></div>
+                  <div class="pr-p pr-context">{@html highlightContext(sr.context, query)}</div>
+                </div>
+              </button>
+            {/each}
+            {#if searchResults.length === 0 && query.trim()}
+              <div class="pr-empty">No matches found</div>
+            {:else if !query.trim()}
+              <div class="pr-empty">Type to search in files</div>
+            {/if}
+          {/if}
+        </div>
       {:else}
         <div class="pal-results" role="listbox">
           {#each results as result, i (result.detail + result.label)}
@@ -293,6 +423,10 @@
         {#if activeCategory === 'ai'}
           <span><kbd>&crarr;</kbd> send</span>
           <span><kbd>shift+&crarr;</kbd> newline</span>
+          <span><kbd>esc</kbd> close</span>
+        {:else if activeCategory === 'search'}
+          <span><kbd>&uarr;&darr;</kbd> navigate</span>
+          <span><kbd>&crarr;</kbd> open</span>
           <span><kbd>esc</kbd> close</span>
         {:else}
           <span><kbd>&uarr;&darr;</kbd> navigate</span>
@@ -452,6 +586,18 @@
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+  }
+
+  .pr-line {
+    font-size: 11px;
+    color: var(--text-tertiary);
+    font-family: 'JetBrains Mono', monospace;
+    margin-left: 4px;
+  }
+
+  .pr-context :global(strong) {
+    color: var(--text-primary);
+    font-weight: 600;
   }
 
   .pr-empty {

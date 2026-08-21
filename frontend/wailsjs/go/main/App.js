@@ -86,6 +86,10 @@ export function SaveUISettings(arg1) {
   return window['go']['main']['App']['SaveUISettings'](arg1);
 }
 
+export function SearchFiles(arg1) {
+  return window['go']['main']['App']['SearchFiles'](arg1);
+}
+
 export function GetHighlights(arg1) {
   return window['go']['main']['App']['GetHighlights'](arg1);
 }

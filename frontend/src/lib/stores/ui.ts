@@ -12,6 +12,7 @@ export const readerRadius = writable(20);
 export const backgroundMode = writable<'gradient' | 'solid' | 'frost'>('gradient');
 export const settingsOpen = writable(false);
 export const tocVisible = writable(false);
+export const commandPaletteCategory = writable<string | null>(null);
 
 export { RADIUS_OPTIONS };
 

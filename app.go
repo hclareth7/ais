@@ -15,6 +15,7 @@ import (
 	"github.com/hclareth7/ais/internal/llm"
 	"github.com/hclareth7/ais/internal/platform"
 	"github.com/hclareth7/ais/internal/scanner"
+	"github.com/hclareth7/ais/internal/search"
 	"github.com/hclareth7/ais/internal/types"
 	"github.com/hclareth7/ais/internal/watcher"
 	wailsRuntime "github.com/wailsapp/wails/v2/pkg/runtime"
@@ -423,6 +424,17 @@ func (a *App) SaveUISettings(s UISettings) error {
 		c.BackgroundMode = s.BackgroundMode
 	})
 	return a.cfgMgr.Save()
+}
+
+// SearchFiles searches all markdown files in the root directory for the given query.
+// Returns up to 50 results with file path, line number, and context snippet.
+func (a *App) SearchFiles(query string) ([]search.SearchResult, error) {
+	if query == "" {
+		return []search.SearchResult{}, nil
+	}
+	root := a.getRootPath()
+	skipDirs := []string{".git", "node_modules", "vendor", ".svn", "__pycache__", ".venv"}
+	return search.SearchFiles(root, query, skipDirs)
 }
 
 // GetHighlights returns all highlights for a given file path. The filePath

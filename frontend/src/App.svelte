@@ -12,7 +12,8 @@
   import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, updateTabContentById, setStreamActive, openStreamTab, tabs, mruOrder } from './lib/stores/tabs';
   import { loadSettings } from './lib/stores/settings';
   import { readFile } from './lib/stores/files';
-  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen } from './lib/stores/ui';
+  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen, commandPaletteCategory } from './lib/stores/ui';
+  import { inFileSearchOpen } from './lib/stores/search';
   import { activeStream, appendStreamContent, completeStream, cancelStreamState, setStreamError, streamState, startStreamSession } from './lib/stores/stream';
   import { get } from 'svelte/store';
 
@@ -137,6 +138,19 @@
       }
 
       if (get(commandPaletteOpen)) return;
+
+      if (e.ctrlKey && e.shiftKey && (e.key === 'F' || e.key === 'f')) {
+        e.preventDefault();
+        commandPaletteCategory.set('search');
+        commandPaletteOpen.set(true);
+        return;
+      }
+
+      if (e.ctrlKey && (e.key === 'f' || e.key === 'F') && !e.shiftKey) {
+        e.preventDefault();
+        inFileSearchOpen.set(true);
+        return;
+      }
 
       if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
         e.preventDefault();

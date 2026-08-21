@@ -6,9 +6,11 @@
   import { applyHighlights, clearHighlightMarks, type HighlightData } from '../highlights/renderer';
   import { captureSelection } from '../highlights/selection';
   import { highlightsForFile, loadHighlightsForFile, addHighlight, removeHighlight, lastUsedColor } from '../stores/highlights';
+  import { searchScrollTarget, inFileSearchOpen } from '../stores/search';
   import { get } from 'svelte/store';
   import WelcomeScreen from './WelcomeScreen.svelte';
   import ImageLightbox from './ImageLightbox.svelte';
+  import InFileSearch from './InFileSearch.svelte';
 
   let { zoomLevel = 100, readingWidth = 720 }: {
     zoomLevel?: number;
@@ -36,6 +38,16 @@
   let quickActionPos = $state<{x: number, y: number} | null>(null);
   let showQuickAction = $state(false);
   let cachedSelection: {anchorText: string, prefixContext: string, suffixContext: string} | null = null;
+
+  // Search highlight state
+  let activeSearchQuery = $state<string | null>(null);
+  let searchHighlightTimer: ReturnType<typeof setTimeout> | null = null;
+
+  // In-file search state
+  let inFileSearchVisible = $state(false);
+  let inFileSearchQuery = $state('');
+  let inFileMatchCount = $state(0);
+  let inFileCurrentMatch = $state(0);
 
   // Stream error/cancelled state for current tab
   let currentStreamState = $derived.by(() => {
@@ -140,6 +152,173 @@
     document.addEventListener('selectionchange', handleSelectionChange);
     return () => document.removeEventListener('selectionchange', handleSelectionChange);
   });
+
+  // Search: scroll to match and highlight all occurrences (from Command Palette cross-file search)
+  $effect(() => {
+    const target = $searchScrollTarget;
+    if (!target || !viewerEl || !$activeTab) return;
+    if ($activeTab.path !== target.filePath) return;
+
+    activeSearchQuery = target.query;
+    searchScrollTarget.set(null);
+
+    requestAnimationFrame(() => {
+      if (!viewerEl) return;
+      applySearchHighlights(viewerEl, target.query);
+
+      const firstMark = viewerEl.querySelector('.search-match');
+      if (firstMark) {
+        firstMark.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }
+    });
+  });
+
+  // Clear search highlights on tab change
+  $effect(() => {
+    const currentId = $activeTab?.id ?? null;
+    if (currentId !== previousTabId) {
+      clearSearchHighlights();
+      activeSearchQuery = null;
+      closeInFileSearch();
+    }
+  });
+
+  // Listen for Ctrl+F toggle from store
+  $effect(() => {
+    const open = $inFileSearchOpen;
+    if (open && !inFileSearchVisible) {
+      inFileSearchVisible = true;
+      inFileSearchOpen.set(false);
+    }
+  });
+
+  function applySearchHighlights(container: HTMLElement, query: string) {
+    if (!query) return;
+    const lowerQuery = query.toLowerCase();
+    const walker = document.createTreeWalker(container, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        // Skip nodes inside pre, code, or existing mark elements
+        const parent = node.parentElement;
+        if (parent?.closest('pre, code, mark')) return NodeFilter.FILTER_REJECT;
+        if (node.textContent && node.textContent.toLowerCase().includes(lowerQuery)) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        return NodeFilter.FILTER_SKIP;
+      }
+    });
+
+    const matchNodes: Text[] = [];
+    while (walker.nextNode()) {
+      matchNodes.push(walker.currentNode as Text);
+    }
+
+    for (const textNode of matchNodes) {
+      const text = textNode.textContent ?? '';
+      const lowerText = text.toLowerCase();
+      const fragments: (string | HTMLElement)[] = [];
+      let cursor = 0;
+
+      while (cursor < text.length) {
+        const idx = lowerText.indexOf(lowerQuery, cursor);
+        if (idx < 0) {
+          fragments.push(text.slice(cursor));
+          break;
+        }
+        if (idx > cursor) {
+          fragments.push(text.slice(cursor, idx));
+        }
+        const mark = document.createElement('mark');
+        mark.className = 'search-match';
+        mark.textContent = text.slice(idx, idx + query.length);
+        fragments.push(mark);
+        cursor = idx + query.length;
+      }
+
+      if (fragments.length > 1 || (fragments.length === 1 && fragments[0] instanceof HTMLElement)) {
+        const parent = textNode.parentNode;
+        if (!parent) continue;
+        for (const frag of fragments) {
+          if (typeof frag === 'string') {
+            parent.insertBefore(document.createTextNode(frag), textNode);
+          } else {
+            parent.insertBefore(frag, textNode);
+          }
+        }
+        parent.removeChild(textNode);
+      }
+    }
+  }
+
+  function clearSearchHighlights() {
+    if (!viewerEl) return;
+    const marks = viewerEl.querySelectorAll('mark.search-match');
+    marks.forEach(mark => {
+      const parent = mark.parentNode;
+      if (!parent) return;
+      const text = document.createTextNode(mark.textContent ?? '');
+      parent.replaceChild(text, mark);
+      // Normalize to merge adjacent text nodes
+      parent.normalize();
+    });
+    if (searchHighlightTimer) {
+      clearTimeout(searchHighlightTimer);
+      searchHighlightTimer = null;
+    }
+  }
+
+  function handleInFileSearch(query: string) {
+    inFileSearchQuery = query;
+    clearSearchHighlights();
+    activeSearchQuery = null;
+
+    if (!query || !viewerEl) {
+      inFileMatchCount = 0;
+      inFileCurrentMatch = 0;
+      return;
+    }
+
+    activeSearchQuery = query;
+    applySearchHighlights(viewerEl, query);
+
+    const marks = viewerEl.querySelectorAll('.search-match');
+    inFileMatchCount = marks.length;
+    if (marks.length > 0) {
+      inFileCurrentMatch = 1;
+      marks[0].classList.add('search-match-current');
+      marks[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
+    } else {
+      inFileCurrentMatch = 0;
+    }
+  }
+
+  function goToNextMatch() {
+    if (!viewerEl || inFileMatchCount === 0) return;
+    const marks = viewerEl.querySelectorAll('.search-match');
+    marks.forEach(m => m.classList.remove('search-match-current'));
+    inFileCurrentMatch = (inFileCurrentMatch % marks.length) + 1;
+    const current = marks[inFileCurrentMatch - 1];
+    current.classList.add('search-match-current');
+    current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function goToPrevMatch() {
+    if (!viewerEl || inFileMatchCount === 0) return;
+    const marks = viewerEl.querySelectorAll('.search-match');
+    marks.forEach(m => m.classList.remove('search-match-current'));
+    inFileCurrentMatch = inFileCurrentMatch <= 1 ? marks.length : inFileCurrentMatch - 1;
+    const current = marks[inFileCurrentMatch - 1];
+    current.classList.add('search-match-current');
+    current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  }
+
+  function closeInFileSearch() {
+    inFileSearchVisible = false;
+    inFileSearchQuery = '';
+    inFileMatchCount = 0;
+    inFileCurrentMatch = 0;
+    clearSearchHighlights();
+    activeSearchQuery = null;
+  }
 
   function handleSelectionChange() {
     const sel = window.getSelection();
@@ -334,6 +513,15 @@
 </script>
 
 {#if $activeTab}
+  <InFileSearch
+    visible={inFileSearchVisible}
+    matchCount={inFileMatchCount}
+    currentMatch={inFileCurrentMatch}
+    onsearch={handleInFileSearch}
+    onnext={goToNextMatch}
+    onprev={goToPrevMatch}
+    onclose={closeInFileSearch}
+  />
   <div
     class="doc"
     class:streaming={isStreaming}
