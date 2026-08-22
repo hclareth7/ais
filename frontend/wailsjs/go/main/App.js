@@ -117,3 +117,7 @@ export function GetInitialFile() {
 export function TranslateText(arg1, arg2) {
   return window['go']['main']['App']['TranslateText'](arg1, arg2);
 }
+
+export function WriteFile(arg1, arg2) {
+  return window['go']['main']['App']['WriteFile'](arg1, arg2);
+}

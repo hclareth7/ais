@@ -61,3 +61,5 @@ export function ClearHighlights(arg1:string):Promise<void>;
 export function GetInitialFile():Promise<string>;
 
 export function TranslateText(arg1:string,arg2:string):Promise<string>;
+
+export function WriteFile(arg1:string,arg2:string):Promise<void>;

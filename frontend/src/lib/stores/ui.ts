@@ -13,6 +13,7 @@ export const backgroundMode = writable<'gradient' | 'solid' | 'frost'>('gradient
 export const settingsOpen = writable(false);
 export const tocVisible = writable(false);
 export const commandPaletteCategory = writable<string | null>(null);
+export const editMode = writable(false);
 
 export { RADIUS_OPTIONS };
 
@@ -107,4 +108,8 @@ export function toggleSettings(): void {
 
 export function toggleToc(): void {
   tocVisible.update(t => !t);
+}
+
+export function toggleEditMode(): void {
+  editMode.update(e => !e);
 }
