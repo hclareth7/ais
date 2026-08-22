@@ -151,6 +151,32 @@ func (a *App) OpenFolder() (string, error) {
 	return path, a.SetRootPath(path)
 }
 
+func (a *App) OpenFile() (string, error) {
+	path, err := wailsRuntime.OpenFileDialog(a.ctx, wailsRuntime.OpenDialogOptions{
+		Title: "Open File",
+		Filters: []wailsRuntime.FileFilter{
+			{DisplayName: "Markdown Files", Pattern: "*.md;*.markdown"},
+		},
+	})
+	if err != nil {
+		return "", err
+	}
+	if path == "" {
+		return "", nil
+	}
+
+	dir := filepath.Dir(path)
+	if err := a.SetRootPath(dir); err != nil {
+		return "", err
+	}
+
+	rel, err := filepath.Rel(dir, path)
+	if err != nil {
+		return filepath.Base(path), nil
+	}
+	return rel, nil
+}
+
 func (a *App) SetRootPath(path string) error {
 	absPath, err := filepath.Abs(path)
 	if err != nil {

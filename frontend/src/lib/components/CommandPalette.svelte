@@ -1,32 +1,20 @@
 <script lang="ts">
   import { commandPaletteOpen, commandPaletteCategory } from '../stores/ui';
   import { fileTree, type FileNode } from '../stores/files';
-  import { openTab, activeTab, openStreamTab } from '../stores/tabs';
+  import { openTab, activeTab } from '../stores/tabs';
   import { setTheme } from '../stores/settings';
-  import { setPrompting, startStreamSession, clearStream } from '../stores/stream';
   import { searchScrollTarget } from '../stores/search';
   import { get } from 'svelte/store';
 
   let query = $state('');
   let inputEl: HTMLInputElement | undefined = $state();
-  let promptEl: HTMLTextAreaElement | undefined = $state();
   let selectedIdx = $state(0);
   let activeCategory = $state('all');
-  let aiPrompt = $state('');
-  let selectedModel = $state('claude-sonnet-5');
-  let hasApiKey = $state(false);
-  let currentProvider = $state('anthropic');
 
   // Search state
   let searchResults = $state<Array<{filePath: string, lineNumber: number, matchOffset: number, context: string}>>([]);
   let searchLoading = $state(false);
   let searchDebounceTimer: ReturnType<typeof setTimeout> | null = null;
-
-  const modelOptions = [
-    { id: 'claude-haiku-4-5', label: 'Haiku' },
-    { id: 'claude-sonnet-5', label: 'Sonnet' },
-    { id: 'claude-opus-5', label: 'Opus' },
-  ];
 
   type Result = {
     type: 'file' | 'command';
@@ -99,27 +87,11 @@
       selectedIdx = 0;
       activeCategory = initialCat ?? 'all';
       commandPaletteCategory.set(null);
-      aiPrompt = '';
       searchResults = [];
       searchLoading = false;
       requestAnimationFrame(() => inputEl?.focus());
-      import('../../../wailsjs/go/main/App')
-        .then(async (app) => {
-          hasApiKey = await app.HasAPIKey();
-          const cfg = await app.GetConfig();
-          currentProvider = cfg.provider && cfg.provider !== '' ? cfg.provider : 'anthropic';
-        })
-        .catch(() => { hasApiKey = false; });
     }
     wasOpen = isOpen;
-  });
-
-  // Focus prompt textarea when switching to AI tab
-  $effect(() => {
-    if (activeCategory === 'ai') {
-      setPrompting();
-      requestAnimationFrame(() => promptEl?.focus());
-    }
   });
 
   // Debounced search when in search mode
@@ -166,49 +138,12 @@
       searchDebounceTimer = null;
     }
     commandPaletteOpen.set(false);
-    if (activeCategory !== 'ai') {
-      clearStream();
-    }
-  }
-
-  async function submitAIPrompt() {
-    const prompt = aiPrompt.trim();
-    if (!prompt) return;
-
-    const tabId = openStreamTab(prompt);
-    startStreamSession(tabId);
-    close();
-
-    try {
-      const App = await import('../../../wailsjs/go/main/App');
-      await App.StartStream(prompt);
-    } catch (err) {
-      // Error will come through llm:error event
-      console.error('Failed to start stream:', err);
-    }
-  }
-
-  function cycleModel() {
-    const idx = modelOptions.findIndex(m => m.id === selectedModel);
-    const nextIdx = (idx + 1) % modelOptions.length;
-    selectedModel = modelOptions[nextIdx].id;
   }
 
   function handleKeydown(e: KeyboardEvent) {
     if (e.key === 'Escape') {
       e.preventDefault();
       close();
-      return;
-    }
-
-    // AI prompt mode has its own key handling
-    if (activeCategory === 'ai') {
-      if (e.key === 'Enter' && !e.shiftKey) {
-        e.preventDefault();
-        submitAIPrompt();
-        return;
-      }
-      // Shift+Enter inserts newline naturally in textarea
       return;
     }
 
@@ -287,7 +222,6 @@
     { key: 'docs', label: 'Docs' },
     { key: 'search', label: 'Search' },
     { key: 'commands', label: 'Commands' },
-    { key: 'ai', label: 'AI' },
   ];
 </script>
 
@@ -304,25 +238,13 @@
     <div class="pal">
       <div class="pal-input">
         <svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-        {#if activeCategory === 'ai'}
-          <input
-            bind:this={inputEl}
-            value=""
-            placeholder="Ask Claude..."
-            autocomplete="off"
-            spellcheck="false"
-            readonly
-            style="cursor: default; opacity: 0.5;"
-          />
-        {:else}
-          <input
-            bind:this={inputEl}
-            bind:value={query}
-            placeholder={activeCategory === 'search' ? 'Search in files...' : 'Search docs, commands...'}
-            autocomplete="off"
-            spellcheck="false"
-          />
-        {/if}
+        <input
+          bind:this={inputEl}
+          bind:value={query}
+          placeholder={activeCategory === 'search' ? 'Search in files...' : 'Search docs, commands...'}
+          autocomplete="off"
+          spellcheck="false"
+        />
         <span class="pal-kbd">esc</span>
       </div>
 
@@ -336,25 +258,7 @@
         {/each}
       </div>
 
-      {#if activeCategory === 'ai'}
-        <div class="pal-ai">
-          <textarea
-            bind:this={promptEl}
-            bind:value={aiPrompt}
-            placeholder="Type your question..."
-            class="pal-ai-textarea"
-            rows="3"
-            spellcheck="false"
-            aria-label="AI prompt"
-          ></textarea>
-          <div class="pal-ai-bar">
-            <span class="pal-ai-provider">{currentProvider === 'vertex' ? 'Vertex AI' : 'Anthropic'}</span>
-            <button class="pal-model-pill" onclick={cycleModel} title="Click to change model" aria-label="Selected model: {selectedModel}">
-              {modelOptions.find(m => m.id === selectedModel)?.label ?? 'Sonnet'}
-            </button>
-          </div>
-        </div>
-      {:else if activeCategory === 'search'}
+      {#if activeCategory === 'search'}
         <div class="pal-results" role="listbox">
           {#if searchLoading}
             <div class="pr-empty">Searching...</div>
@@ -420,11 +324,7 @@
       {/if}
 
       <div class="pal-footer">
-        {#if activeCategory === 'ai'}
-          <span><kbd>&crarr;</kbd> send</span>
-          <span><kbd>shift+&crarr;</kbd> newline</span>
-          <span><kbd>esc</kbd> close</span>
-        {:else if activeCategory === 'search'}
+        {#if activeCategory === 'search'}
           <span><kbd>&uarr;&darr;</kbd> navigate</span>
           <span><kbd>&crarr;</kbd> open</span>
           <span><kbd>esc</kbd> close</span>
@@ -626,86 +526,4 @@
     color: var(--text-tertiary);
   }
 
-  /* AI prompt mode */
-  .pal-ai {
-    padding: 6px 14px 14px;
-  }
-
-  .pal-ai-textarea {
-    width: 100%;
-    min-height: 60px;
-    max-height: 180px;
-    padding: 14px 18px;
-    font-size: 15px;
-    font-family: inherit;
-    color: var(--text-primary);
-    background: transparent;
-    border: none;
-    resize: none;
-    line-height: 1.5;
-    outline: none;
-    box-sizing: border-box;
-  }
-
-  .pal-ai-textarea::placeholder {
-    color: var(--text-tertiary);
-  }
-
-  .pal-ai-bar {
-    display: flex;
-    justify-content: flex-end;
-    padding-top: 6px;
-  }
-
-  .pal-ai-provider {
-    font-size: 11px;
-    color: var(--text-ghost);
-  }
-
-  .pal-model-pill {
-    font-size: 11px;
-    font-family: 'JetBrains Mono', monospace;
-    color: var(--text-tertiary);
-    padding: 3px 8px;
-    background: var(--hover-bg);
-    border-radius: 6px;
-    cursor: pointer;
-    border: none;
-    transition: background 0.12s, color 0.12s;
-  }
-
-  .pal-model-pill:hover {
-    background: var(--active-bg);
-    color: var(--text-secondary);
-  }
-
-  .pal-ai-nokey {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    padding: 20px 4px;
-  }
-
-  .pal-ai-dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    margin-top: 5px;
-    flex-shrink: 0;
-  }
-
-  .pal-ai-dot.warning {
-    background: var(--warning);
-  }
-
-  .pal-ai-msg {
-    font-size: 14px;
-    color: var(--text-secondary);
-  }
-
-  .pal-ai-hint {
-    font-size: 12px;
-    color: var(--text-tertiary);
-    margin-top: 4px;
-  }
 </style>

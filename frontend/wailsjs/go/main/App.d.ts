@@ -22,6 +22,8 @@ export function GetVertexRegions():Promise<Array<string>>;
 
 export function HasAPIKey():Promise<boolean>;
 
+export function OpenFile():Promise<string>;
+
 export function OpenFolder():Promise<string>;
 
 export function ReadFile(arg1:string):Promise<string>;

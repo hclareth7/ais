@@ -74,12 +74,12 @@
   --img-error-text: var(--text-tertiary);
 
   /* Highlight colors */
-  --hl-yellow-bg: rgba(250, 204, 21, 0.16);
-  --hl-green-bg: rgba(34, 197, 94, 0.16);
-  --hl-blue-bg: rgba(96, 165, 250, 0.16);
-  --hl-pink-bg: rgba(244, 114, 182, 0.16);
-  --hl-purple-bg: rgba(168, 85, 247, 0.16);
-  --hl-orange-bg: rgba(251, 146, 60, 0.16);
+  --hl-yellow-bg: rgba(250, 204, 21, 0.24);
+  --hl-green-bg: rgba(34, 197, 94, 0.24);
+  --hl-blue-bg: rgba(96, 165, 250, 0.24);
+  --hl-pink-bg: rgba(244, 114, 182, 0.24);
+  --hl-purple-bg: rgba(168, 85, 247, 0.24);
+  --hl-orange-bg: rgba(251, 146, 60, 0.24);
 
   --hl-yellow-dot: #FACC15;
   --hl-green-dot: #22C55E;
@@ -89,9 +89,12 @@
   --hl-orange-dot: #FB923C;
 
   /* Search match tokens */
-  --search-match-bg: rgba(255, 200, 50, 0.35);
-  --search-match-current-bg: rgba(255, 160, 0, 0.6);
+  --search-match-bg: rgba(255, 200, 50, 0.40);
+  --search-match-current-bg: rgba(255, 160, 0, 0.65);
   --search-match-text: #FFE082;
+
+  /* Selection */
+  --selection-bg: rgba(120, 160, 255, 0.25);
 }
 
 /* ── Light Mode ── */
@@ -167,6 +170,9 @@
   --search-match-bg: rgba(255, 180, 0, 0.3);
   --search-match-current-bg: rgba(255, 140, 0, 0.5);
   --search-match-text: #92400E;
+
+  /* Selection */
+  --selection-bg: rgba(60, 100, 220, 0.18);
 }
 
 /* ── Base ── */
@@ -517,7 +523,7 @@ body {
 
 /* ── Selection ── */
 ::selection {
-  background-color: var(--accent-dim);
+  background-color: var(--selection-bg);
   color: var(--text-primary);
 }
 
