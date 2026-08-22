@@ -714,6 +714,7 @@
     scrollbar-color: var(--scrollbar-thumb) transparent;
     user-select: text;
     position: relative;
+    padding-bottom: 100px;
   }
 
   /* Streaming document border glow (Design.md) */

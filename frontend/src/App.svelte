@@ -170,6 +170,19 @@
         return;
       }
 
+      if (e.ctrlKey && (e.key === 'o' || e.key === 'O') && !e.shiftKey) {
+        e.preventDefault();
+        import('../wailsjs/go/main/App').then(async (App) => {
+          const relPath = await App.OpenFile();
+          if (relPath) {
+            await loadFileTree();
+            const filename = relPath.split('/').pop() ?? relPath;
+            openTab(relPath, filename);
+          }
+        }).catch(() => {});
+        return;
+      }
+
       if (e.ctrlKey && e.shiftKey && (e.key === 'C' || e.key === 'c')) {
         e.preventDefault();
         const tab = get(activeTab);

@@ -38,6 +38,10 @@ export function HasAPIKey() {
   return window['go']['main']['App']['HasAPIKey']();
 }
 
+export function OpenFile() {
+  return window['go']['main']['App']['OpenFile']();
+}
+
 export function OpenFolder() {
   return window['go']['main']['App']['OpenFolder']();
 }
