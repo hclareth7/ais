@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { zoomLevel, zoomIn, zoomOut, resetZoom, readingWidth, toggleFocusMode, focusMode, toggleSettings } from '../stores/ui';
+  import { zoomLevel, zoomIn, zoomOut, resetZoom, readingWidth, toggleFocusMode, focusMode, toggleSettings, editMode, toggleEditMode } from '../stores/ui';
   import { theme, setTheme, type ThemeMode } from '../stores/settings';
   import { activeTab, setStreamActive } from '../stores/tabs';
   import { streamActive, cancelStreamState, activeStream } from '../stores/stream';
@@ -101,6 +101,12 @@
       <svg viewBox="0 0 20 20"><rect x="6" y="6" width="10" height="12" rx="1.5"/><path d="M4 14V4a1.5 1.5 0 011.5-1.5H13"/></svg>
     {/if}
   </button>
+
+  {#if $activeTab && $activeTab.type === 'file'}
+    <button class="cb" class:on={$editMode} onclick={toggleEditMode} aria-label="Toggle edit mode" aria-pressed={$editMode} title="Edit mode (Ctrl+E)">
+      <svg viewBox="0 0 20 20"><path d="M13.5 3.5l3 3L6 17H3v-3L13.5 3.5z"/></svg>
+    </button>
+  {/if}
 
   <div class="cb-div" aria-hidden="true"></div>
 

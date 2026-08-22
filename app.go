@@ -128,6 +128,30 @@ func (a *App) ReadFile(relativePath string) (string, error) {
 	return scanner.ReadFileContent(absPath)
 }
 
+const maxWriteSize = 10 * 1024 * 1024 // 10MB
+
+func (a *App) WriteFile(relativePath string, content string) error {
+	root := a.getRootPath()
+	absPath, err := filepath.Abs(filepath.Join(root, relativePath))
+	if err != nil {
+		return fmt.Errorf("invalid path: %w", err)
+	}
+	if !strings.HasPrefix(absPath, root+string(os.PathSeparator)) && absPath != root {
+		return fmt.Errorf("path outside root: %s", relativePath)
+	}
+
+	ext := strings.ToLower(filepath.Ext(absPath))
+	if ext != ".md" && ext != ".markdown" {
+		return fmt.Errorf("only markdown files can be written")
+	}
+
+	if len(content) > maxWriteSize {
+		return fmt.Errorf("content exceeds 10MB limit")
+	}
+
+	return os.WriteFile(absPath, []byte(content), 0644)
+}
+
 // GetRootPath returns the current root directory path. Thread-safe.
 func (a *App) GetRootPath() string {
 	return a.getRootPath()

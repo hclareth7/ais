@@ -2,7 +2,7 @@
   import { renderMarkdown } from '../markdown/renderer';
   import { activeTab, saveScrollPos, openTab } from '../stores/tabs';
   import { activeStream, streamState, type StreamError } from '../stores/stream';
-  import { settingsOpen } from '../stores/ui';
+  import { settingsOpen, editMode } from '../stores/ui';
   import { applyHighlights, clearHighlightMarks, type HighlightData } from '../highlights/renderer';
   import { captureSelection } from '../highlights/selection';
   import { highlightsForFile, loadHighlightsForFile, addHighlight, removeHighlight, lastUsedColor } from '../stores/highlights';
@@ -59,6 +59,11 @@
   let inFileSearchQuery = $state('');
   let inFileMatchCount = $state(0);
   let inFileCurrentMatch = $state(0);
+
+  // Edit mode state
+  let editingEl: HTMLElement | null = null;
+  let editOriginalText = '';
+  let editOriginalMarkdown = '';
 
   // Stream error/cancelled state for current tab
   let currentStreamState = $derived.by(() => {
@@ -586,6 +591,196 @@
     heading.classList.toggle('collapsed', !isCollapsed);
   }
 
+  // Clean up contenteditable when edit mode is turned off
+  $effect(() => {
+    if (!$editMode) {
+      exitEditing(false);
+    }
+  });
+
+  function exitEditing(save: boolean) {
+    if (!editingEl) return;
+    if (save) {
+      const newText = editingEl.textContent ?? '';
+      if (newText !== editOriginalText) {
+        saveEdit(editOriginalText, newText);
+      }
+    } else {
+      editingEl.textContent = editOriginalText;
+    }
+    editingEl.removeAttribute('contenteditable');
+    editingEl.classList.remove('editing');
+    editingEl = null;
+    editOriginalText = '';
+    editOriginalMarkdown = '';
+  }
+
+  function activateEditing(el: HTMLElement) {
+    if (editingEl === el) return;
+    if (editingEl) exitEditing(true);
+
+    editOriginalText = el.textContent ?? '';
+    editingEl = el;
+    el.setAttribute('contenteditable', 'true');
+    el.classList.add('editing');
+    el.focus();
+
+    el.addEventListener('blur', handleEditBlur);
+    el.addEventListener('keydown', handleEditKeydown);
+  }
+
+  function handleEditBlur() {
+    if (!editingEl) return;
+    const el = editingEl;
+    el.removeEventListener('blur', handleEditBlur);
+    el.removeEventListener('keydown', handleEditKeydown);
+    exitEditing(true);
+  }
+
+  function handleEditKeydown(e: KeyboardEvent) {
+    if (e.key === 'Escape') {
+      e.preventDefault();
+      if (!editingEl) return;
+      editingEl.removeEventListener('blur', handleEditBlur);
+      editingEl.removeEventListener('keydown', handleEditKeydown);
+      exitEditing(false);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (!editingEl) return;
+      editingEl.removeEventListener('blur', handleEditBlur);
+      editingEl.removeEventListener('keydown', handleEditKeydown);
+      exitEditing(true);
+    }
+  }
+
+  function handleTripleClick(e: MouseEvent) {
+    if (!$editMode || e.detail !== 3) return;
+    const target = e.target as HTMLElement;
+
+    if (target.closest('pre, code, table, .stream-error, .stream-stopped')) return;
+
+    const editable = target.closest('p, h1, h2, h3, h4, h5, h6, li');
+    if (!editable || !viewerEl?.contains(editable)) return;
+
+    e.preventDefault();
+    activateEditing(editable as HTMLElement);
+  }
+
+  async function saveEdit(originalText: string, newText: string) {
+    if (originalText === newText) return;
+    const tab = get(activeTab);
+    if (!tab || tab.type !== 'file') return;
+
+    const rawMarkdown = tab.content;
+    const idx = findTextInMarkdown(rawMarkdown, originalText);
+    if (idx === -1) {
+      console.warn('Edit: could not locate original text in markdown source');
+      return;
+    }
+
+    const updated = rawMarkdown.substring(0, idx) + newText + rawMarkdown.substring(idx + originalText.length);
+
+    try {
+      const App = await import('../../../wailsjs/go/main/App');
+      await App.WriteFile(tab.path, updated);
+    } catch (err) {
+      console.error('Edit: failed to write file:', err);
+    }
+  }
+
+  function findTextInMarkdown(markdown: string, text: string): number {
+    const lines = markdown.split('\n');
+    let offset = 0;
+
+    for (const line of lines) {
+      const stripped = stripInlineMarkdown(line);
+      const idx = stripped.indexOf(text);
+      if (idx !== -1) {
+        const mdIdx = mapStrippedIndexToRaw(line, idx);
+        return offset + mdIdx;
+      }
+      offset += line.length + 1;
+    }
+
+    // Fallback: try multi-line match by joining consecutive non-empty lines
+    offset = 0;
+    for (let i = 0; i < lines.length; i++) {
+      let combined = '';
+      let combinedRaw = '';
+      for (let j = i; j < lines.length && lines[j].trim() !== ''; j++) {
+        if (j > i) {
+          combined += ' ';
+          combinedRaw += '\n';
+        }
+        combined += stripInlineMarkdown(lines[j]);
+        combinedRaw += lines[j];
+      }
+      const idx = combined.indexOf(text);
+      if (idx !== -1) {
+        return offset + mapStrippedIndexToRaw(combinedRaw, idx);
+      }
+      offset += lines[i].length + 1;
+    }
+
+    return -1;
+  }
+
+  function stripInlineMarkdown(line: string): string {
+    return line
+      .replace(/^#{1,6}\s+/, '')
+      .replace(/^[-*+]\s+/, '')
+      .replace(/^\d+\.\s+/, '')
+      .replace(/^>\s*/, '')
+      .replace(/\*\*(.+?)\*\*/g, '$1')
+      .replace(/\*(.+?)\*/g, '$1')
+      .replace(/__(.+?)__/g, '$1')
+      .replace(/_(.+?)_/g, '$1')
+      .replace(/~~(.+?)~~/g, '$1')
+      .replace(/`(.+?)`/g, '$1')
+      .replace(/\[(.+?)\]\(.*?\)/g, '$1');
+  }
+
+  function mapStrippedIndexToRaw(rawLine: string, strippedIdx: number): number {
+    let rawPos = 0;
+    let strippedPos = 0;
+
+    const headingMatch = rawLine.match(/^#{1,6}\s+/);
+    if (headingMatch) rawPos = headingMatch[0].length;
+
+    const listMatch = rawLine.match(/^[-*+]\s+/);
+    if (listMatch && !headingMatch) rawPos = listMatch[0].length;
+
+    const olMatch = rawLine.match(/^\d+\.\s+/);
+    if (olMatch && !headingMatch && !listMatch) rawPos = olMatch[0].length;
+
+    const bqMatch = rawLine.match(/^>\s*/);
+    if (bqMatch && !headingMatch && !listMatch && !olMatch) rawPos = bqMatch[0].length;
+
+    while (rawPos < rawLine.length && strippedPos < strippedIdx) {
+      if (rawLine[rawPos] === '*' || rawLine[rawPos] === '_' || rawLine[rawPos] === '~') {
+        const marker = rawLine[rawPos];
+        if (rawLine[rawPos + 1] === marker) { rawPos += 2; continue; }
+        rawPos++; continue;
+      }
+      if (rawLine[rawPos] === '`') { rawPos++; continue; }
+      if (rawLine[rawPos] === '[') {
+        const linkEnd = rawLine.indexOf('](', rawPos);
+        if (linkEnd !== -1) {
+          rawPos++;
+          strippedPos++;
+          continue;
+        }
+      }
+      if (rawLine[rawPos] === ']' && rawLine[rawPos + 1] === '(') {
+        const closeP = rawLine.indexOf(')', rawPos + 2);
+        if (closeP !== -1) { rawPos = closeP + 1; continue; }
+      }
+      rawPos++;
+      strippedPos++;
+    }
+    return rawPos;
+  }
+
   function getErrorDisplay(error: StreamError): { dotClass: string; message: string; hint: string; showSettings: boolean } {
     switch (error.code) {
       case 'auth':
@@ -613,6 +808,7 @@
   <div
     class="doc"
     class:streaming={isStreaming}
+    class:edit-mode={$editMode}
     bind:this={viewerEl}
     role="article"
     aria-label={isStreamTab ? `AI response: ${$activeTab.name}` : $activeTab.name}
@@ -620,10 +816,13 @@
     aria-live={isStreamTab ? 'polite' : undefined}
     onscroll={handleScroll}
   >
+    {#if $editMode}
+      <div class="edit-label">Editing</div>
+    {/if}
     <div
       class="doc-inner"
       role="presentation"
-      onclick={handleContentClick}
+      onclick={(e) => { handleTripleClick(e); handleContentClick(e); }}
       onkeydown={() => {}}
       style="max-width: {readingWidth}px; transform: scale({zoomLevel / 100}); transform-origin: top center;"
     >
@@ -709,12 +908,12 @@
     overflow-y: auto;
     overflow-x: hidden;
     display: flex;
-    justify-content: center;
+    flex-direction: column;
+    align-items: center;
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) transparent;
     user-select: text;
     position: relative;
-    padding-bottom: 100px;
   }
 
   /* Streaming document border glow (Design.md) */
@@ -733,7 +932,7 @@
   .doc-inner {
     width: 100%;
     max-width: var(--reading-max-width);
-    padding: 36px 32px 140px;
+    padding: 36px 32px 240px;
     line-height: 1.75;
     color: var(--text-primary);
     font-size: 16px;
@@ -1131,5 +1330,29 @@
   @keyframes qa-in {
     from { opacity: 0; transform: translate(-50%, -100%) scale(0.9); }
     to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+  }
+
+  /* -- Edit Mode -- */
+  .doc.edit-mode {
+    border-top: 1px solid var(--accent-dim);
+  }
+
+  .doc-inner :global(.editing) {
+    background: var(--accent-dim);
+    border-radius: 4px;
+    outline: none;
+    padding: 2px 4px;
+    margin: -2px -4px;
+  }
+
+  .edit-label {
+    position: absolute;
+    top: 8px;
+    right: 12px;
+    font-size: 11px;
+    color: var(--accent-text);
+    opacity: 0.6;
+    pointer-events: none;
+    z-index: 5;
   }
 </style>

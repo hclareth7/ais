@@ -12,7 +12,7 @@
   import { openTab, closeTab, nextTab, prevTab, activeTabId, activeTab, updateTabContent, updateTabContentById, setStreamActive, openStreamTab, tabs, mruOrder } from './lib/stores/tabs';
   import { loadSettings } from './lib/stores/settings';
   import { readFile } from './lib/stores/files';
-  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen, commandPaletteCategory } from './lib/stores/ui';
+  import { zoomLevel, readingWidth, focusMode, zoomIn, zoomOut, resetZoom, toggleFocusMode, toggleCommandPalette, commandPaletteOpen, changeOpacity, tocVisible, toggleToc, settingsOpen, commandPaletteCategory, editMode, toggleEditMode } from './lib/stores/ui';
   import { inFileSearchOpen } from './lib/stores/search';
   import { activeStream, appendStreamContent, completeStream, cancelStreamState, setStreamError, streamState, startStreamSession } from './lib/stores/stream';
   import { get } from 'svelte/store';
@@ -180,6 +180,15 @@
             openTab(relPath, filename);
           }
         }).catch(() => {});
+        return;
+      }
+
+      if (e.ctrlKey && (e.key === 'e' || e.key === 'E') && !e.shiftKey) {
+        e.preventDefault();
+        const tab = get(activeTab);
+        if (tab && !tab.isStream) {
+          toggleEditMode();
+        }
         return;
       }
 
